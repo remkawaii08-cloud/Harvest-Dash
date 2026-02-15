@@ -1,9 +1,24 @@
 import * as THREE from 'three';
+import type Game from './Game';
 
 export default class Player {
-    constructor(game) {
+    game: Game;
+    mesh!: THREE.Mesh;
+    lane: number;
+    laneWidth: number;
+
+    // Jumping physics
+    velocity: number;
+    gravity: number;
+    isJumping: boolean;
+    yPos: number;
+
+    magnetRingMat!: THREE.MeshBasicMaterial;
+    magnetRing!: THREE.Mesh;
+    horseShoe!: THREE.Mesh;
+
+    constructor(game: Game) {
         this.game = game;
-        this.mesh = null;
         this.lane = 0; // -1, 0, 1
         this.laneWidth = 2.0;
 
@@ -24,7 +39,7 @@ export default class Player {
         const canvas = document.createElement('canvas');
         canvas.width = 64;
         canvas.height = 64;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d')!;
 
         // Face Texture
         ctx.fillStyle = '#D2691E'; // Wood base
@@ -83,7 +98,7 @@ export default class Player {
         this.setMagnetEffect(false);
     }
 
-    onKeyDown(e) {
+    onKeyDown(e: KeyboardEvent) {
         if (!this.game.isPlaying) return;
 
         switch (e.code) {
@@ -125,7 +140,7 @@ export default class Player {
         }
     }
 
-    update(dt, speed) {
+    update(dt: number, speed: number) {
         // Horizontal Movement (Smooth Lerp)
         const targetX = this.lane * this.laneWidth;
         this.mesh.position.x += (targetX - this.mesh.position.x) * 10 * dt;
@@ -154,9 +169,9 @@ export default class Player {
                 const timeRemaining = this.game.magnetTimer;
                 // Faster blink as it approaches 0
                 const frequency = timeRemaining <= 2 ? 20 : 10;
-                this.magnetRing.material.opacity = (Math.sin(Date.now() * 0.001 * frequency) * 0.5) + 0.5;
+                this.magnetRingMat.opacity = (Math.sin(Date.now() * 0.001 * frequency) * 0.5) + 0.5;
             } else {
-                this.magnetRing.material.opacity = 0.5;
+                this.magnetRingMat.opacity = 0.5;
             }
         }
 
@@ -173,22 +188,23 @@ export default class Player {
         }
     }
 
-    setMagnetEffect(enabled) {
+    setMagnetEffect(enabled: boolean) {
         if (this.magnetRing) {
             this.magnetRing.visible = enabled;
         }
     }
 
-    setMetallicSkin(enabled) {
+    setMetallicSkin(enabled: boolean) {
         if (!this.mesh) return;
+        const mat = this.mesh.material as THREE.MeshStandardMaterial; // Cast as we know it's Standard
         if (enabled) {
-            this.mesh.material.color.set(0xaaaaaa); // Metallic Grey
-            this.mesh.material.metalness = 1.0;
-            this.mesh.material.roughness = 0.2;
+            mat.color.set(0xaaaaaa); // Metallic Grey
+            mat.metalness = 1.0;
+            mat.roughness = 0.2;
         } else {
-            this.mesh.material.color.set(0xffffff); // Default
-            this.mesh.material.metalness = 0.0;
-            this.mesh.material.roughness = 0.8;
+            mat.color.set(0xffffff); // Default
+            mat.metalness = 0.0;
+            mat.roughness = 0.8;
         }
     }
 

@@ -1,5 +1,5 @@
 import './style.css';
-import Game from './src/Game.js';
+import Game from './src/Game';
 
 window.addEventListener('DOMContentLoaded', () => {
     const game = new Game();

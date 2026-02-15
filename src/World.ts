@@ -1,7 +1,27 @@
 import * as THREE from 'three';
+import type Game from './Game';
 
 export default class World {
-    constructor(game) {
+    game: Game;
+    obstacles: THREE.Mesh[];
+    coins: THREE.Mesh[];
+    floorSegments: THREE.Group[];
+    segmentLength: number;
+    spawnDistance: number;
+    lastSpawnZ: number;
+
+    obstaclePool: Record<string, THREE.Mesh[]>;
+    coinPool: THREE.Mesh[];
+    floorPool: THREE.Group[]; // Keeping it if you plan to use it, though seemingly unused in snippet
+    particles: THREE.Mesh[];
+
+    dirtTexture?: THREE.CanvasTexture;
+    grassTexture?: THREE.CanvasTexture;
+    crateTexture?: THREE.CanvasTexture;
+    hayTexture?: THREE.CanvasTexture;
+    rockTexture?: THREE.CanvasTexture;
+
+    constructor(game: Game) {
         this.game = game;
         this.obstacles = [];
         this.coins = [];
@@ -64,7 +84,7 @@ export default class World {
         }
     }
 
-    spawnFloor(zPos) {
+    spawnFloor(zPos: number) {
         const floorGroup = new THREE.Group();
 
         // Generate Textures (Ideally cache these in constructor, but for now inline is fine or cached in module scope)
@@ -259,7 +279,7 @@ export default class World {
         this.floorSegments.push(floorGroup);
     }
 
-    spawnObstacle(zPos) {
+    spawnObstacle(zPos: number) {
         const types = ['crate', 'hay', 'rock'];
         const type = types[Math.floor(Math.random() * types.length)];
 
@@ -293,7 +313,7 @@ export default class World {
         this.obstacles.push(obstacle);
     }
 
-    createObstacleMesh(type) {
+    createObstacleMesh(type: string) {
         let geometry, material;
 
         if (type === 'crate') {
@@ -350,7 +370,7 @@ export default class World {
         return mesh;
     }
 
-    spawnCoin(zPos) {
+    spawnCoin(zPos: number) {
         let coin;
         if (this.coinPool.length > 0) {
             coin = this.coinPool.pop();
@@ -364,8 +384,8 @@ export default class World {
             // If pooling, we can just assign the base material back.
             // But we don't have reference to base material here easily without storing it.
             // Let's just fix the properties.
-            coin.material.opacity = 1;
-            coin.material.transparent = false;
+            (coin.material as THREE.MeshStandardMaterial).opacity = 1;
+            (coin.material as THREE.MeshStandardMaterial).transparent = false;
         } else {
             // Coin Shape: Cylinder (Disc)
             const geometry = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16);
@@ -392,11 +412,12 @@ export default class World {
         // Reset rotation each spawn if reused
         coin.rotation.set(Math.PI / 2, 0, 0); // Reset to upright disc
         coin.userData.bobOffset = Math.random() * Math.PI * 2; // Random bob phase
+        coin.userData.imgScale = 1;
 
         this.coins.push(coin);
     }
 
-    update(dt, speed, playerMesh, magnetActive) {
+    update(dt: number, speed: number, playerMesh: THREE.Mesh, magnetActive: boolean) {
         const moveDistance = speed * dt;
 
         // Move Floors
@@ -444,12 +465,12 @@ export default class World {
             const coin = this.coins[i];
 
             if (coin.userData.isPopping) {
-                coin.imgScale += dt * 5;
-                coin.scale.setScalar(coin.imgScale);
-                coin.material.opacity -= dt * 3;
+                coin.userData.imgScale += dt * 5;
+                coin.scale.setScalar(coin.userData.imgScale);
+                (coin.material as THREE.MeshStandardMaterial).opacity -= dt * 3;
                 coin.position.z += moveDistance;
 
-                if (coin.material.opacity <= 0) {
+                if ((coin.material as THREE.MeshStandardMaterial).opacity <= 0) {
                     coin.visible = false;
                     coin.userData.isPopping = false;
                     this.coinPool.push(coin);
@@ -487,7 +508,7 @@ export default class World {
             p.position.add(p.userData.velocity.clone().multiplyScalar(dt));
             p.userData.velocity.y += this.game.player.gravity * 0.5 * dt; // Gravity
             p.userData.life -= dt;
-            p.material.opacity = p.userData.life;
+            (p.material as THREE.Material).opacity = p.userData.life;
 
             if (p.userData.life <= 0) {
                 this.game.scene.remove(p);
@@ -496,7 +517,7 @@ export default class World {
         }
     }
 
-    checkCollision(playerMesh) {
+    checkCollision(playerMesh: THREE.Mesh) {
         const playerBox = new THREE.Box3().setFromObject(playerMesh);
         playerBox.expandByScalar(-0.2);
 
@@ -510,7 +531,7 @@ export default class World {
         return false;
     }
 
-    checkCollisionDetailed(playerMesh) {
+    checkCollisionDetailed(playerMesh: THREE.Mesh) {
         const playerBox = new THREE.Box3().setFromObject(playerMesh);
         playerBox.expandByScalar(-0.2);
 
@@ -525,7 +546,7 @@ export default class World {
         return null;
     }
 
-    breakObstacle(obs) {
+    breakObstacle(obs: THREE.Mesh) {
         this.spawnShatterParticles(obs.position, obs.userData.type);
         obs.visible = false;
         // Move to pool logic
@@ -540,7 +561,7 @@ export default class World {
         }
     }
 
-    spawnShatterParticles(pos, type) {
+    spawnShatterParticles(pos: THREE.Vector3, type: string) {
         const count = 10; // Slightly more particles for better feel
         let color = 0x8B4513; // Default Crate/Box (Wood)
 
@@ -569,7 +590,7 @@ export default class World {
         }
     }
 
-    checkCoinCollision(playerMesh, magnetRadius = 0) {
+    checkCoinCollision(playerMesh: THREE.Mesh, magnetRadius: number = 0) {
         const playerBox = new THREE.Box3().setFromObject(playerMesh);
         if (magnetRadius > 0) {
             playerBox.expandByScalar(magnetRadius);
@@ -586,14 +607,14 @@ export default class World {
                 gathered++;
                 // Trigger Pop Animation
                 coin.userData.isPopping = true;
-                coin.imgScale = 1;
+                coin.userData.imgScale = 1;
                 // Make sure we clone material so we don't fade ALL coins
                 // But efficient way: cache materials? For now, clone on pop if needed or use unique material?
                 // Actually, modifying opacity on shared material will fade ALL coins.
                 // We need to clone material for the popping coin.
-                coin.material = coin.material.clone();
-                coin.material.transparent = true;
-                coin.material.opacity = 1;
+                coin.material = (coin.material as THREE.Material).clone();
+                (coin.material as THREE.MeshStandardMaterial).transparent = true;
+                (coin.material as THREE.MeshStandardMaterial).opacity = 1;
             }
         }
         return gathered;

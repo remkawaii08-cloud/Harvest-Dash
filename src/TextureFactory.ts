@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 
 export default class TextureFactory {
-    static createTexture(type) {
+    static createTexture(type: string): THREE.Texture {
         const size = 64;
         const canvas = document.createElement('canvas');
         canvas.width = size;
         canvas.height = size;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d')!;
 
         switch (type) {
             case 'crate':
