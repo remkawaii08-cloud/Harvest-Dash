@@ -7,14 +7,28 @@
   --gold: #FFD700;
 }
 
+* {
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+html,
 body {
   margin: 0;
+  padding: 0;
   overflow: hidden;
+  height: 100%;
+  width: 100%;
   background-color: #87CEEB;
   /* Sky Blue fallback */
   font-family: 'VT323', monospace;
   color: var(--cream);
   user-select: none;
+  position: fixed;
+  top: 0;
+  left: 0;
 }
 
 canvas {
@@ -35,7 +49,7 @@ canvas {
 
 .screen {
   background: var(--wood-light);
-  padding: 2rem 4rem;
+  padding: clamp(1rem, 5vw, 4rem);
   border: 4px solid var(--wood-dark);
   box-shadow: 5px 5px 0px rgba(0, 0, 0, 0.5);
   border-radius: 4px;
@@ -52,6 +66,10 @@ canvas {
   left: 50%;
   transform: translate(-50%, -50%) scale(0.9);
   z-index: 1000;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .screen.active {
@@ -61,7 +79,7 @@ canvas {
 }
 
 h1 {
-  font-size: 4rem;
+  font-size: clamp(2rem, 6vw, 4rem);
   margin-bottom: 0.5rem;
   text-transform: uppercase;
   color: var(--gold);
@@ -71,7 +89,7 @@ h1 {
 
 .main-title {
   font-family: 'Arial Black', Gadget, sans-serif;
-  font-size: 6rem;
+  font-size: clamp(3rem, 12vw, 6rem);
   color: #8BC34A;
   /* Rustic Green */
   margin-top: 0;
@@ -100,22 +118,27 @@ h1 {
 }
 
 p {
-  font-size: 1.5rem;
+  font-size: clamp(1rem, 3vw, 1.5rem);
   margin-bottom: 2rem;
   color: var(--cream);
   text-shadow: 1px 1px 0 #000;
+  word-wrap: break-word;
 }
 
 button {
   background: var(--wood-dark);
   color: var(--gold);
   border: 2px solid var(--gold);
-  padding: 10px 30px;
-  font-size: 2rem;
+  padding: clamp(8px, 2vw, 30px) clamp(20px, 5vw, 30px);
+  font-size: clamp(1rem, 3vw, 2rem);
   font-family: 'VT323', monospace;
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+  min-height: 44px;
+  min-width: 44px;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 button:hover {
@@ -147,6 +170,8 @@ button:hover {
   width: 50%;
   pointer-events: auto;
   z-index: 10;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 #touch-move-left {
@@ -171,19 +196,23 @@ button:hover {
 }
 
 .quick-btn {
-  width: 60px;
-  height: 60px;
+  width: clamp(50px, 12vw, 60px);
+  height: clamp(50px, 12vw, 60px);
   background: rgba(0, 0, 0, 0.5);
   border: 2px solid var(--gold);
   border-radius: 12px;
   color: white;
-  font-size: 1.5rem;
+  font-size: clamp(1rem, 2vw, 1.5rem);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   pointer-events: auto;
   cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .quick-btn .count {
@@ -206,14 +235,14 @@ button:hover {
   position: absolute;
   bottom: calc(20px + env(safe-area-inset-bottom));
   right: calc(20px + env(safe-area-inset-right));
-  width: 100px;
-  height: 100px;
+  width: clamp(80px, 18vw, 100px);
+  height: clamp(80px, 18vw, 100px);
   background: rgba(255, 255, 255, 0.2);
   border: 3px solid rgba(255, 255, 255, 0.5);
   border-radius: 50%;
   color: white;
   font-weight: bold;
-  font-size: 1.2rem;
+  font-size: clamp(0.8rem, 2.5vw, 1.2rem);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -221,6 +250,8 @@ button:hover {
   z-index: 100;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .mobile-jump-btn:active {
@@ -232,18 +263,22 @@ button:hover {
   position: absolute;
   bottom: calc(130px + env(safe-area-inset-bottom));
   right: calc(20px + env(safe-area-inset-right));
-  width: 60px;
-  height: 60px;
+  width: clamp(50px, 12vw, 60px);
+  height: clamp(50px, 12vw, 60px);
   background: rgba(0, 0, 0, 0.5);
   border: 2px solid var(--gold);
   border-radius: 12px;
-  font-size: 2.2rem;
+  font-size: clamp(1.5rem, 4vw, 2.2rem);
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: auto;
   z-index: 600;
   cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 
@@ -260,9 +295,9 @@ button:hover {
   position: absolute;
   bottom: 20px;
   right: 20px;
-  width: 60px;
-  height: 60px;
-  font-size: 2.5rem;
+  width: clamp(50px, 12vw, 60px);
+  height: clamp(50px, 12vw, 60px);
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
   background: var(--wood-light);
   border: 4px solid var(--wood-dark);
   color: var(--gold);
@@ -274,6 +309,10 @@ button:hover {
   justify-content: center;
   align-items: center;
   border-radius: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 #bag-btn:hover {
@@ -297,7 +336,8 @@ button:hover {
 /* Shop Styles */
 .shop-items {
   display: flex;
-  gap: 20px;
+  flex-wrap: wrap;
+  gap: clamp(10px, 3vw, 20px);
   justify-content: center;
   margin-bottom: 2rem;
 }
@@ -306,10 +346,13 @@ button:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px;
+  padding: clamp(10px, 3vw, 20px);
   background: var(--wood-dark);
   border: 2px solid var(--gold);
   color: var(--gold);
+  flex: 1;
+  min-width: 100px;
+  min-height: 80px;
 }
 
 .item-btn:disabled {
@@ -334,8 +377,9 @@ button:hover {
 
 .balance {
   color: var(--gold);
-  font-size: 2rem;
+  font-size: clamp(1.2rem, 4vw, 2rem);
   margin-top: 0;
+  word-break: break-word;
 }
 
 .shop-btn {
@@ -384,11 +428,14 @@ button:hover {
 }
 
 .tab-btn {
-  font-size: 1.5rem;
-  padding: 5px 20px;
+  font-size: clamp(1rem, 2.5vw, 1.5rem);
+  padding: clamp(4px, 1vw, 20px) clamp(10px, 3vw, 20px);
   background: var(--wood-dark);
   color: #888;
   border: 2px solid #444;
+  min-height: 44px;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .tab-btn.active {
@@ -435,16 +482,18 @@ button:hover {
 }
 
 .menu-buttons button {
-  width: 250px;
+  width: clamp(150px, 80vw, 250px);
 }
 
 .start-gold-display {
-  font-size: 2rem;
+  font-size: clamp(1rem, 3vw, 2rem);
   color: var(--gold);
   text-shadow: 2px 2px 0 #000;
   background: rgba(0, 0, 0, 0.3);
-  padding: 10px 20px;
+  padding: clamp(5px, 2vw, 20px) clamp(10px, 3vw, 20px);
   border-radius: 4px;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
+  gap: 5px;
 }
