@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Harvest Dash - Mini Game</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+  <div id="ui-container">
+    <div id="start-screen" class="screen active">
+      <h1 class="main-title">HARVEST DASH</h1>
+      <p>Harvest the coins, avoid the obstacles!</p>
+
+      <div class="menu-buttons">
+        <button id="start-btn">START GAME</button>
+        <button id="shop-btn-start">SHOP</button>
+        <button id="skills-btn-start">SKILLS</button>
+      </div>
+
+      <div class="start-gold-display">
+        GOLD: <span class="coin-icon"></span><span id="start-total-gold">0</span>
+        <span style="margin-left: 15px;">JADES: </span><span class="jade-icon"></span><span
+          id="start-total-jades">0</span>
+      </div>
+
+      <p style="font-size: 1rem; margin-top: 20px; opacity: 0.8;">
+        ARROW KEYS / A-D to Move | SPACE / W to Jump
+      </p>
+    </div>
+    <div id="game-over-screen" class="screen">
+      <h1>Harvest Dash</h1>
+      <p>Collected:
+        <span class="coin-icon"></span><span id="run-gold-over">0</span>
+      </p>
+      <p>Wallet:
+        <span class="coin-icon"></span><span id="wallet-over">0</span>
+      </p>
+      <button id="restart-btn">Try Again</button>
+      <button id="shop-btn-over" class="shop-btn">Shop</button>
+      <button id="menu-btn-over" style="margin-top: 10px;">Main Menu</button>
+    </div>
+    <div id="shop-screen" class="screen">
+      <p class="balance">
+        WALLET: <span class="coin-icon"></span><span id="shop-gold">0</span>
+        &nbsp;|&nbsp;
+        JADES: <span class="jade-icon"></span><span id="shop-jades">0</span>
+      </p>
+
+      <div class="shop-tabs">
+        <button id="tab-store" class="tab-btn active">GENERAL STORE</button>
+        <button id="tab-mint" class="tab-btn">MINTING STATION</button>
+      </div>
+
+      <div id="store-content" class="tab-content active">
+        <div class="shop-items">
+          <button id="buy-magnet" class="item-btn">
+            <div>Magnet (30s)</div>
+            <div class="price">1 G</div>
+          </button>
+          <button id="buy-potion" class="item-btn">
+            <div>Iron Potion</div>
+            <div class="price">1 G</div>
+          </button>
+          <button id="buy-jump" class="item-btn">
+            <div>Jump Skill</div>
+            <div class="price">10 G</div>
+          </button>
+        </div>
+      </div>
+
+      <div id="mint-content" class="tab-content">
+        <div class="shop-items">
+          <button id="mint-horseshoe" class="item-btn" style="min-width: 200px;">
+            <div style="font-size: 2.5rem;">👟</div>
+            <div>Horse Shoe (NFT)</div>
+            <div class="price">1000 G + 100 JADES</div>
+          </button>
+        </div>
+        <p style="font-size: 1rem; opacity: 0.8;">NFT Verified Cosmetics • Unique Collection</p>
+      </div>
+
+      <button id="shop-back" style="margin-top: 20px;">Back</button>
+      <button id="reset-all-btn"
+        style="margin-top: 20px; background: #8B0000; color: white; border-color: #550000; font-size: 1.5rem;">RESET
+        ALL</button>
+    </div>
+    <div id="paused-screen" class="screen">
+      <h1>PAUSED</h1>
+      <button id="resume-btn">Resume</button>
+      <button id="shop-btn-pause" class="shop-btn">Shop</button>
+      <button id="menu-btn-pause" style="margin-top: 10px;">Main Menu</button>
+    </div>
+    <div id="bag-screen" class="screen">
+      <h1>YOUR BAG</h1>
+      <div id="bag-items-list" class="shop-items">
+        <!-- Items will be injected here -->
+      </div>
+      <button id="bag-close" style="margin-top: 20px;">Close</button>
+    </div>
+    <div id="hud" class="hidden">
+      <!-- Touch Overlay for Movement -->
+      <div id="touch-move-left" class="touch-zone"></div>
+      <div id="touch-move-right" class="touch-zone"></div>
+
+
+
+      <div id="quick-items-mobile">
+        <button id="quick-magnet" class="quick-btn" style="display: none;">🧲 <span class="count">0</span></button>
+        <button id="quick-potion" class="quick-btn" style="display: none;">🧪 <span class="count">0</span></button>
+      </div>
+
+      <div id="gold-display">
+        <div class="hud-item">
+          <span class="coin-icon" style="width: 20px; height: 20px;"></span>
+          <span id="run-gold-val">0</span>
+        </div>
+        <div class="hud-item wallet-hud">
+          <span class="wallet-label">WALLET:</span>
+          <span id="total-gold-hud">0</span>
+        </div>
+        <div class="hud-item wallet-hud">
+          <span class="wallet-label">JADES:</span>
+          <span id="total-jades-hud" style="color: #4CAF50;">0</span>
+        </div>
+        <div id="magnet-timer"
+          style="display: none; font-size: 1.2rem; color: #00ffff; text-shadow: 1px 1px 0 #000; margin-top: 5px;">
+          MAGNET: <span id="magnet-time-left">30</span>s
+        </div>
+        <div id="potion-hud"
+          style="display: none; font-size: 1.2rem; color: #C0C0C0; text-shadow: 1px 1px 0 #000; margin-top: 5px;">
+          IRON BODY: <span id="potion-charges">0</span> HITS
+        </div>
+      </div>
+
+      <div id="notification"
+        style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -150%); font-size: 3rem; color: #00ffff; pointer-events: none; opacity: 0; transition: opacity 0.3s, transform 0.5s; text-shadow: 3px 3px 0 #000; z-index: 1500; text-align: center; width: 100%;">
+      </div>
+
+      <button id="jump-btn-mobile" class="mobile-jump-btn" style="display: none;">JUMP</button>
+      <button id="bag-btn" class="mobile-bag-btn">🎒</button>
+    </div>
+  </div>
+  <script type="module" src="/main.js"></script>
+</body>
+
+</html>
