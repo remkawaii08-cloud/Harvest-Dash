@@ -1306,9 +1306,9 @@ export default class Game {
             }
         }
 
-        // Day/Night Cycle
+        // Day/Night Cycle (3 Minutes = 180s)
         this.dayTime += dt;
-        const cycleLen = 60; // 60 second cycle
+        const cycleLen = 180;
         const t = (this.dayTime % cycleLen) / cycleLen; // 0 to 1
 
         const colorDay = new THREE.Color(0x87CEEB);
@@ -1322,20 +1322,23 @@ export default class Game {
         let ambIntensity = 0.6;
         let jadeGlow = 0.8;
 
-        // Celestial Movement: -20 to 20 range for x, 5 to 15 range for y
+        // Celestial Movement: Matches 3 minute cycle
         const angle = t * Math.PI * 2;
         const sunX = Math.cos(angle) * 30;
         const sunY = Math.sin(angle) * 15;
         this.sunMesh.position.set(sunX, sunY, -20);
 
-        // Moon is opposite to sun
         const moonAngle = angle + Math.PI;
-        const moonX = Math.cos(moonAngle) * 30;
-        const moonY = Math.sin(moonAngle) * 15;
-        this.moonMesh.position.set(moonX, moonY, -20);
+        this.moonMesh.position.set(Math.cos(moonAngle) * 30, Math.sin(moonAngle) * 15, -20);
 
-        // Phase Logic
-        if (t < 0.4) { // Day
+        // Phase Timings
+        const tDayEnd = 90 / 180;      // 0.5
+        const tSunsetEnd = 105 / 180;  // 0.5833
+        const tNightStart = 105 / 180;
+        const tNightFull = 120 / 180;  // 0.666 (First 15s of night is transition)
+        const tNightEnd = 165 / 180;   // 0.9166
+
+        if (t < tDayEnd) { // Day (0 - 90s)
             targetColor = colorDay;
             starOpacity = 0;
             sunIntensity = 1.5;
@@ -1346,36 +1349,48 @@ export default class Game {
             this.sunFlare.visible = true;
             this.sunFlare.scale.setScalar(1.5 + Math.sin(Date.now() * 0.002) * 0.1);
             (this.sunFlare.material as THREE.MeshBasicMaterial).opacity = 0.15;
-        } else if (t < 0.5) { // Sunset
-            const p = (t - 0.4) / 0.1;
+
+        } else if (t < tSunsetEnd) { // Sunset (90s - 105s)
+            const p = (t - tDayEnd) / (tSunsetEnd - tDayEnd);
             targetColor = colorDay.clone().lerp(colorSunset, p);
             starOpacity = p * 0.3;
             sunIntensity = 1.5 - (p * 0.5);
             ambIntensity = 0.6 - (p * 0.2);
             jadeGlow = 0.8 + (p * 0.7);
+
             this.sunMesh.visible = true;
-            this.moonMesh.visible = p > 0.5;
+            this.moonMesh.visible = true;
+
             this.sunFlare.visible = true;
             (this.sunFlare.material as THREE.MeshBasicMaterial).opacity = 0.15 * (1 - p);
-        } else if (t < 0.9) { // Night
-            const p = (t - 0.5) / 0.1;
-            if (p < 1) targetColor = colorSunset.clone().lerp(colorNight, p);
-            else targetColor = colorNight;
+
+        } else if (t < tNightEnd) { // Night (105s - 165s)
+            // Fade to Night Color over first 15s of Night
+            if (t < tNightFull) {
+                const p = (t - tNightStart) / (tNightFull - tNightStart);
+                targetColor = colorSunset.clone().lerp(colorNight, p);
+            } else {
+                targetColor = colorNight;
+            }
+
             starOpacity = 1;
             sunIntensity = 0.2;
             ambIntensity = 0.1;
             sunColor = new THREE.Color(0x8888ff);
             jadeGlow = 2.0;
+
             this.sunMesh.visible = false;
             this.moonMesh.visible = true;
             this.sunFlare.visible = false;
-        } else { // Sunrise
-            const p = (t - 0.9) / 0.1;
+
+        } else { // Sunrise (165s - 180s)
+            const p = (t - tNightEnd) / (1.0 - tNightEnd);
             targetColor = colorNight.clone().lerp(colorDay, p);
             starOpacity = 1 - p;
             sunIntensity = 0.2 + (p * 1.3);
             ambIntensity = 0.1 + (p * 0.5);
             jadeGlow = 2.0 - (p * 1.2);
+
             this.sunMesh.visible = p > 0.5;
             this.moonMesh.visible = p < 0.5;
             this.sunFlare.visible = false;

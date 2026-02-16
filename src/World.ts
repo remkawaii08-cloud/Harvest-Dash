@@ -15,6 +15,7 @@ export default class World {
     jadePool: THREE.Mesh[] = [];
     jades: THREE.Mesh[] = [];
     particles: THREE.Mesh[];
+    particlePool: THREE.Mesh[];
     decals: THREE.Mesh[] = [];
     jadeMaterial?: THREE.MeshStandardMaterial;
     weatherParticles!: THREE.Points;
@@ -25,6 +26,22 @@ export default class World {
     hayTexture?: THREE.CanvasTexture;
     rockTexture?: THREE.CanvasTexture;
     burnMarkTexture?: THREE.CanvasTexture;
+
+    // Cache Assets to reduce GC Stutter
+    roadGeo!: THREE.PlaneGeometry;
+    roadMat!: THREE.MeshStandardMaterial;
+    grassGeo!: THREE.PlaneGeometry;
+    grassMat!: THREE.MeshStandardMaterial;
+    fencePostGeo!: THREE.BoxGeometry;
+    fenceRailGeo!: THREE.BoxGeometry;
+    fenceMat!: THREE.MeshStandardMaterial;
+    treeTrunkGeo!: THREE.CylinderGeometry;
+    treeLeavesGeo!: THREE.ConeGeometry;
+    treeMat!: THREE.MeshStandardMaterial;
+    leavesMat!: THREE.MeshStandardMaterial;
+    rockGeo!: THREE.DodecahedronGeometry;
+    rockMat!: THREE.MeshStandardMaterial;
+    particleGeo!: THREE.BoxGeometry;
 
     constructor(game: Game) {
         this.game = game;
@@ -38,17 +55,27 @@ export default class World {
         this.obstaclePool = { crate: [], hay: [], rock: [], double_crate: [] };
         this.coinPool = [];
         this.particles = [];
+        this.particlePool = [];
 
         this.init();
     }
 
     init() {
+        // Init Shared Assets
+        this.initSharedAssets();
+
         // Initial floor
         for (let i = 0; i < 5; i++) {
             this.spawnFloor(-i * this.segmentLength);
         }
 
         this.initWeatherParticles();
+    }
+
+    initSharedAssets() {
+        // Textures (Lazy loaded later, but materials need them)
+        // We'll init materials in spawnFloor first call if needed, or helper
+        this.particleGeo = new THREE.BoxGeometry(1, 1, 1);
     }
 
     initWeatherParticles() {
@@ -158,38 +185,54 @@ export default class World {
             this.grassTexture.repeat.set(4, 10);
         }
 
+        if (!this.roadGeo) {
+            // Initialize geometries/materials ONCE
+            this.roadGeo = new THREE.PlaneGeometry(8, this.segmentLength + 0.2);
+            this.roadMat = new THREE.MeshStandardMaterial({
+                map: this.dirtTexture,
+                roughness: 1.0,
+                metalness: 0.0,
+                side: THREE.DoubleSide
+            });
+
+            this.grassGeo = new THREE.PlaneGeometry(20, this.segmentLength + 0.2);
+            this.grassMat = new THREE.MeshStandardMaterial({
+                map: this.grassTexture,
+                roughness: 1.0,
+                metalness: 0.0,
+                side: THREE.DoubleSide
+            });
+
+            this.fencePostGeo = new THREE.BoxGeometry(0.2, 1.2, 0.2);
+            this.fenceRailGeo = new THREE.BoxGeometry(0.1, 0.1, 5);
+            this.fenceMat = new THREE.MeshStandardMaterial({ color: 0x5D4037, roughness: 0.9 });
+
+            this.treeTrunkGeo = new THREE.CylinderGeometry(0.2, 0.2, 1, 8);
+            this.treeLeavesGeo = new THREE.ConeGeometry(1, 2, 8);
+            this.treeMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            this.leavesMat = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+
+            this.rockGeo = new THREE.DodecahedronGeometry(0.4);
+            this.rockMat = new THREE.MeshStandardMaterial({ color: 0x808080 });
+        }
+
         // Road Mesh (Dirt Path)
-        const roadGeo = new THREE.PlaneGeometry(8, this.segmentLength);
-        const roadMat = new THREE.MeshStandardMaterial({
-            map: this.dirtTexture,
-            roughness: 1.0,
-            metalness: 0.0,
-            side: THREE.DoubleSide
-        });
-        const road = new THREE.Mesh(roadGeo, roadMat);
+        const road = new THREE.Mesh(this.roadGeo, this.roadMat);
         road.rotation.x = -Math.PI / 2;
         road.position.set(0, 0.01, 0);
 
         floorGroup.add(road);
 
         // Grass Sides
-        const grassGeo = new THREE.PlaneGeometry(20, this.segmentLength);
-        const grassMat = new THREE.MeshStandardMaterial({
-            map: this.grassTexture,
-            roughness: 1.0,
-            metalness: 0.0,
-            side: THREE.DoubleSide
-        });
 
         // Left Grass
-        const leftGrass = new THREE.Mesh(grassGeo, grassMat);
+        const leftGrass = new THREE.Mesh(this.grassGeo, this.grassMat);
         leftGrass.rotation.x = -Math.PI / 2;
-        leftGrass.position.set(-14, 0, 0); // Road is 8 wide (-4 to 4). Grass starts at -4. 
-        // 20 wide centered at -14 means -24 to -4. Perfect.
+        leftGrass.position.set(-14, 0, 0);
         floorGroup.add(leftGrass);
 
         // Right Grass
-        const rightGrass = new THREE.Mesh(grassGeo, grassMat);
+        const rightGrass = new THREE.Mesh(this.grassGeo, this.grassMat);
         rightGrass.rotation.x = -Math.PI / 2;
         rightGrass.position.set(14, 0, 0); // 4 to 24.
         floorGroup.add(rightGrass);
@@ -233,49 +276,38 @@ export default class World {
 
 
         // Fences
-        const fencePostGeo = new THREE.BoxGeometry(0.2, 1.2, 0.2); // Slightly taller
-        const fenceRailGeo = new THREE.BoxGeometry(0.1, 0.1, 5); // Long along Z axis
-        const fenceMat = new THREE.MeshStandardMaterial({ color: 0x5D4037, roughness: 0.9 }); // Dark Brown
 
         for (let i = 0; i < 10; i++) { // 10 fences per 50 unit segment (every 5 units)
             const z = (i * 5) - this.segmentLength / 2;
 
             // Left Fence
-            const postL = new THREE.Mesh(fencePostGeo, fenceMat);
+            const postL = new THREE.Mesh(this.fencePostGeo, this.fenceMat);
             postL.position.set(-3.5, 0.5, z);
             floorGroup.add(postL);
 
-            const railL1 = new THREE.Mesh(fenceRailGeo, fenceMat);
+            const railL1 = new THREE.Mesh(this.fenceRailGeo, this.fenceMat);
             railL1.position.set(-3.5, 0.8, z + 2.5); // Upper rail
             floorGroup.add(railL1);
 
-            const railL2 = new THREE.Mesh(fenceRailGeo, fenceMat);
+            const railL2 = new THREE.Mesh(this.fenceRailGeo, this.fenceMat);
             railL2.position.set(-3.5, 0.4, z + 2.5); // Lower rail
             floorGroup.add(railL2);
 
             // Right Fence
-            const postR = new THREE.Mesh(fencePostGeo, fenceMat);
+            const postR = new THREE.Mesh(this.fencePostGeo, this.fenceMat);
             postR.position.set(3.5, 0.5, z);
             floorGroup.add(postR);
 
-            const railR1 = new THREE.Mesh(fenceRailGeo, fenceMat);
+            const railR1 = new THREE.Mesh(this.fenceRailGeo, this.fenceMat);
             railR1.position.set(3.5, 0.8, z + 2.5);
             floorGroup.add(railR1);
 
-            const railR2 = new THREE.Mesh(fenceRailGeo, fenceMat);
+            const railR2 = new THREE.Mesh(this.fenceRailGeo, this.fenceMat);
             railR2.position.set(3.5, 0.4, z + 2.5);
             floorGroup.add(railR2);
         }
 
         // Decor: Trees, Rocks, Flowers
-        // Simple Geometries
-        const treeTrunkGeo = new THREE.CylinderGeometry(0.2, 0.2, 1, 8);
-        const treeLeavesGeo = new THREE.ConeGeometry(1, 2, 8);
-        const treeMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
-        const leavesMat = new THREE.MeshStandardMaterial({ color: 0x228B22 }); // ForestGreen
-
-        const rockGeo = new THREE.DodecahedronGeometry(0.4);
-        const rockMat = new THREE.MeshStandardMaterial({ color: 0x808080 });
 
         const flowerGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
         const flowerMatY = new THREE.MeshStandardMaterial({ color: 0xFFFF00 });
@@ -289,14 +321,14 @@ export default class World {
 
             const rand = Math.random();
             if (rand < 0.2) { // Tree
-                const trunk = new THREE.Mesh(treeTrunkGeo, treeMat);
+                const trunk = new THREE.Mesh(this.treeTrunkGeo, this.treeMat);
                 trunk.position.set(xOffset, 0.5, zOffset);
                 floorGroup.add(trunk);
-                const leaves = new THREE.Mesh(treeLeavesGeo, leavesMat);
+                const leaves = new THREE.Mesh(this.treeLeavesGeo, this.leavesMat);
                 leaves.position.set(xOffset, 1.5, zOffset);
                 floorGroup.add(leaves);
             } else if (rand < 0.4) { // Rock
-                const rock = new THREE.Mesh(rockGeo, rockMat);
+                const rock = new THREE.Mesh(this.rockGeo, this.rockMat);
                 rock.position.set(xOffset, 0.2, zOffset);
                 rock.rotation.set(Math.random(), Math.random(), Math.random());
                 floorGroup.add(rock);
@@ -661,7 +693,9 @@ export default class World {
             (p.material as THREE.Material).opacity = p.userData.life;
 
             if (p.userData.life <= 0) {
+                p.visible = false;
                 this.game.scene.remove(p);
+                this.particlePool.push(p);
                 this.particles.splice(i, 1);
             }
         }
@@ -817,23 +851,42 @@ export default class World {
     }
 
     spawnGenericParticles(pos: THREE.Vector3, count: number, color: number | string, size: number = 0.2, speed: number = 5, life: number = 1.0, isGlow: boolean = false) {
-        const particleGeo = new THREE.BoxGeometry(size, size, size);
+        // Use shared Geometry and Pooled Meshes/Materials
         for (let i = 0; i < count; i++) {
-            const mat = new THREE.MeshStandardMaterial({
-                color: color,
-                transparent: true,
-                emissive: isGlow ? color : 0x000000,
-                emissiveIntensity: isGlow ? 1.0 : 0
-            });
-            const p = new THREE.Mesh(particleGeo, mat);
+            let p: THREE.Mesh;
+
+            if (this.particlePool.length > 0) {
+                p = this.particlePool.pop()!;
+                const mat = p.material as THREE.MeshStandardMaterial;
+                mat.color.set(color);
+                mat.emissive.setHex(isGlow ? (typeof color === 'number' ? color : 0xffffff) : 0x000000);
+                mat.emissiveIntensity = isGlow ? 1.0 : 0;
+                mat.opacity = 1.0;
+                mat.transparent = true;
+                p.visible = true;
+            } else {
+                const mat = new THREE.MeshStandardMaterial({
+                    color: color,
+                    transparent: true,
+                    emissive: isGlow ? color : 0x000000,
+                    emissiveIntensity: isGlow ? 1.0 : 0
+                });
+                p = new THREE.Mesh(this.particleGeo, mat);
+            }
+
+            p.scale.setScalar(size);
             p.position.copy(pos);
-            p.userData.velocity = new THREE.Vector3(
+
+            if (!p.userData.velocity) p.userData.velocity = new THREE.Vector3();
+            p.userData.velocity.set(
                 (Math.random() - 0.5) * speed,
                 (Math.random() * speed * 0.5) + (speed * 0.2),
                 (Math.random() - 0.5) * speed
             );
+
             p.userData.life = life;
             p.userData.maxLife = life;
+
             this.game.scene.add(p);
             this.particles.push(p);
         }
