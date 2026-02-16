@@ -51,12 +51,17 @@ export default class Game {
     cameraBasePos: THREE.Vector3 = new THREE.Vector3(0, 3, 5);
     shakeTime: number = 0;
     shakeIntensity: number = 0;
+    shakeFrequency: number = 60;
+    MAX_SHAKE_INTENSITY: number = 1.0;
     isHitStopping: boolean = false;
 
     // Lights
     ambientLight!: THREE.AmbientLight;
     dirLight!: THREE.DirectionalLight;
     stars!: THREE.Points;
+    sunMesh!: THREE.Mesh;
+    moonMesh!: THREE.Mesh;
+    sunFlare!: THREE.Mesh;
     dayTime: number = 0;
 
     // UI Elements
@@ -171,6 +176,14 @@ export default class Game {
 
     questsClaimed: { [key: string]: boolean } = {};
 
+    // Weather System
+    weatherType: 'none' | 'storm' | 'sandstorm' | 'bloodmoon' = 'none';
+    weatherTimer: number = 0;
+    weatherCycleTimer: number = 30;
+    thunderSfx!: HTMLAudioElement;
+    weatherOverlayEl!: HTMLElement;
+    lightningTimer: number = 0;
+
     init() {
         // Audio Setup
         this.bgm = new Audio('https://freetestdata.com/wp-content/uploads/2021/09/Free_Test_Data_1MB_MP3.mp3');
@@ -182,6 +195,10 @@ export default class Game {
         this.menuBgm.loop = true;
         this.menuBgm.volume = this.isMuted ? 0 : 0.6;
         this.menuBgm.onerror = () => console.error('Audio Source Missing: Menu BGM');
+
+        this.thunderSfx = new Audio('https://www.soundjay.com/nature/sounds/thunder-crack-01.mp3');
+        this.thunderSfx.volume = 0.8;
+        this.thunderSfx.onerror = () => console.error('Audio Source Missing: Thunder SFX');
 
         this.coinSfx = new Audio('https://www.soundjay.com/buttons/sounds/button-35.mp3');
         this.coinSfx.volume = 1.0;
@@ -250,6 +267,8 @@ export default class Game {
         this.renderer.setClearColor(0x87CEEB); // Sky Blue Background
         document.body.appendChild(this.renderer.domElement);
 
+        this.weatherOverlayEl = document.getElementById('weather-overlay')!;
+
         // Lights: Bright Sun
         this.ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // Brighter ambient
         this.scene.add(this.ambientLight);
@@ -258,6 +277,24 @@ export default class Game {
         this.dirLight.position.set(10, 20, 10);
         this.dirLight.castShadow = true;
         this.scene.add(this.dirLight);
+
+        // Sun Mesh
+        const sunGeo = new THREE.SphereGeometry(1.5, 32, 32);
+        const sunMat = new THREE.MeshBasicMaterial({ color: 0xFFD700 });
+        this.sunMesh = new THREE.Mesh(sunGeo, sunMat);
+        this.scene.add(this.sunMesh);
+
+        // Sun Flare (Subtle)
+        const flareGeo = new THREE.SphereGeometry(2.5, 32, 32);
+        const flareMat = new THREE.MeshBasicMaterial({ color: 0xFFD700, transparent: true, opacity: 0.2 });
+        this.sunFlare = new THREE.Mesh(flareGeo, flareMat);
+        this.sunMesh.add(this.sunFlare);
+
+        // Moon Mesh
+        const moonGeo = new THREE.SphereGeometry(1.2, 32, 32);
+        const moonMat = new THREE.MeshBasicMaterial({ color: 0xe0e0e0 });
+        this.moonMesh = new THREE.Mesh(moonGeo, moonMat);
+        this.scene.add(this.moonMesh);
 
         // Stars
         this.createStars();
@@ -1242,73 +1279,133 @@ export default class Game {
 
         // Day/Night Cycle
         this.dayTime += dt;
-        const cycleLen = 120;
+        const cycleLen = 60; // 60 second cycle
         const t = (this.dayTime % cycleLen) / cycleLen; // 0 to 1
 
         const colorDay = new THREE.Color(0x87CEEB);
         const colorSunset = new THREE.Color(0xFF8C00);
-        const colorNight = new THREE.Color(0x000080);
+        const colorNight = new THREE.Color(0x000030); // Deep night blue
 
         let targetColor;
         let starOpacity = 0;
         let sunIntensity = 1.5;
         let sunColor = new THREE.Color(0xffffff);
         let ambIntensity = 0.6;
+        let jadeGlow = 0.8;
+
+        // Celestial Movement: -20 to 20 range for x, 5 to 15 range for y
+        const angle = t * Math.PI * 2;
+        const sunX = Math.cos(angle) * 30;
+        const sunY = Math.sin(angle) * 15;
+        this.sunMesh.position.set(sunX, sunY, -20);
+
+        // Moon is opposite to sun
+        const moonAngle = angle + Math.PI;
+        const moonX = Math.cos(moonAngle) * 30;
+        const moonY = Math.sin(moonAngle) * 15;
+        this.moonMesh.position.set(moonX, moonY, -20);
 
         // Phase Logic
-        if (t < 0.4) { // Day (0 - 40%)
+        if (t < 0.4) { // Day
             targetColor = colorDay;
             starOpacity = 0;
             sunIntensity = 1.5;
             ambIntensity = 0.6;
-        } else if (t < 0.5) { // Sunset (40% - 50%)
-            const p = (t - 0.4) / 0.1; // 0 to 1
+            jadeGlow = 0.8;
+            this.sunMesh.visible = true;
+            this.moonMesh.visible = false;
+            this.sunFlare.visible = true;
+            this.sunFlare.scale.setScalar(1.5 + Math.sin(Date.now() * 0.002) * 0.1);
+            (this.sunFlare.material as THREE.MeshBasicMaterial).opacity = 0.15;
+        } else if (t < 0.5) { // Sunset
+            const p = (t - 0.4) / 0.1;
             targetColor = colorDay.clone().lerp(colorSunset, p);
             starOpacity = p * 0.3;
             sunIntensity = 1.5 - (p * 0.5);
             ambIntensity = 0.6 - (p * 0.2);
-            sunColor.lerp(new THREE.Color(0xffaa00), p);
-        } else if (t < 0.9) { // Night (50% - 90%)
-            if (t < 0.6) { // Sunset to Night Transition
-                const p = (t - 0.5) / 0.1;
-                targetColor = colorSunset.clone().lerp(colorNight, p);
-                starOpacity = 0.3 + (p * 0.7);
-                sunIntensity = 1.0 - (p * 0.7); // Down to 0.3
-                ambIntensity = 0.4 - (p * 0.2); // Down to 0.2
-                sunColor = new THREE.Color(0xffaa00).lerp(new THREE.Color(0x8888ff), p);
-            } else { // Full Night
-                targetColor = colorNight;
-                starOpacity = 1;
-                sunIntensity = 0.3;
-                ambIntensity = 0.2;
-                sunColor = new THREE.Color(0x8888ff);
-            }
-        } else { // Sunrise (90% - 100%)
+            jadeGlow = 0.8 + (p * 0.7);
+            this.sunMesh.visible = true;
+            this.moonMesh.visible = p > 0.5;
+            this.sunFlare.visible = true;
+            (this.sunFlare.material as THREE.MeshBasicMaterial).opacity = 0.15 * (1 - p);
+        } else if (t < 0.9) { // Night
+            const p = (t - 0.5) / 0.1;
+            if (p < 1) targetColor = colorSunset.clone().lerp(colorNight, p);
+            else targetColor = colorNight;
+            starOpacity = 1;
+            sunIntensity = 0.2;
+            ambIntensity = 0.1;
+            sunColor = new THREE.Color(0x8888ff);
+            jadeGlow = 2.0;
+            this.sunMesh.visible = false;
+            this.moonMesh.visible = true;
+            this.sunFlare.visible = false;
+        } else { // Sunrise
             const p = (t - 0.9) / 0.1;
             targetColor = colorNight.clone().lerp(colorDay, p);
             starOpacity = 1 - p;
-            sunIntensity = 0.3 + (p * 1.2);
-            ambIntensity = 0.2 + (p * 0.4);
-            sunColor = new THREE.Color(0x8888ff).lerp(new THREE.Color(0xffffff), p);
+            sunIntensity = 0.2 + (p * 1.3);
+            ambIntensity = 0.1 + (p * 0.5);
+            jadeGlow = 2.0 - (p * 1.2);
+            this.sunMesh.visible = p > 0.5;
+            this.moonMesh.visible = p < 0.5;
+            this.sunFlare.visible = false;
         }
 
         this.scene.fog!.color.copy(targetColor);
         this.renderer.setClearColor(targetColor);
-        (this.stars.material as THREE.Material).opacity = starOpacity;
+        (this.stars.material as THREE.PointsMaterial).opacity = starOpacity;
 
         this.dirLight.intensity = sunIntensity;
         this.dirLight.color.copy(sunColor);
+        this.dirLight.position.copy(this.sunMesh.position);
         this.ambientLight.intensity = ambIntensity;
+
+        // Interaction: Jades glow stronger at night
+        this.world.updateJadeGlow(jadeGlow);
 
         this.player.update(dt, this.speed);
         this.world.update(dt, this.speed, this.player.mesh, this.magnetActive);
 
+        // Weather System Trigger
+        if (this.runDistance > 2000) {
+            this.weatherCycleTimer -= dt;
+            if (this.weatherCycleTimer <= 0) {
+                this.weatherCycleTimer = 30;
+                if (this.weatherType === 'none') {
+                    const r = Math.random();
+                    if (r < 0.33) this.setWeather('storm');
+                    else if (r < 0.66) this.setWeather('sandstorm');
+                    else this.setWeather('bloodmoon');
+                } else {
+                    this.setWeather('none');
+                }
+            }
+        }
+
+        if (this.weatherType !== 'none') {
+            this.updateWeather(dt);
+        }
+
+        // Jade Collection Check
+        const jadesCollected = this.world.checkJadeCollision(this.player.mesh);
+        if (jadesCollected > 0) {
+            for (let i = 0; i < jadesCollected; i++) {
+                this.onCollectJade(this.player.mesh.position);
+            }
+        }
+
         // Coin Check
         let magnetRadius = this.magnetActive ? 4.0 : 0; // Much larger radius
         if (this.equippedSkin === 'Golden Dash') {
-            magnetRadius += 0.5; // Passive buff: 20% of base-ish or just a flat bonus
+            magnetRadius += 0.5; // Passive buff
         }
         let coinsCollected = this.world.checkCoinCollision(this.player.mesh, magnetRadius);
+
+        // Blood Moon Bonus: 2x Gold
+        if (this.weatherType === 'bloodmoon') {
+            coinsCollected *= 2;
+        }
 
         // Golden Dash Ability: 5x Gold
         if (this.equippedSkin === 'Golden Dash' && coinsCollected > 0) {
@@ -1333,9 +1430,12 @@ export default class Game {
         const obs = this.world.checkCollisionDetailed(this.player.mesh, collisionRadiusExp);
         if (obs) {
             if (this.potionActive) { // Potion is active, absorb hit
-                // Shake Camera
-                this.shakeIntensity = 0.5;
-                this.shakeTime = 0.5;
+                // Scaled Shake
+                let intensity = 0.1; // Subtle for wooden crates/hay
+                if (obs.userData.type === 'rock') intensity = 0.4;
+                if (obs.userData.type === 'double_crate') intensity = 0.5;
+
+                this.triggerCameraShake(intensity, 0.15, 60);
 
                 // Play break effect
                 this.onBreakObstacle(obs);
@@ -1367,7 +1467,7 @@ export default class Game {
 
     checkJadeDrop(pos: THREE.Vector3) {
         if (Math.random() < 0.65) { // 65% Jade Drop Chance
-            this.onCollectJade(pos);
+            this.world.spawnJade(pos);
         }
     }
 
@@ -1396,6 +1496,67 @@ export default class Game {
     onBreakObstacle(obs: any) {
         this.playSfx('break');
         this.world.breakObstacle(obs);
+    }
+
+    setWeather(type: 'none' | 'storm' | 'sandstorm' | 'bloodmoon') {
+        this.weatherType = type;
+        this.weatherTimer = 30;
+
+        // Reset effects
+        if (this.weatherOverlayEl) {
+            this.weatherOverlayEl.style.background = 'transparent';
+        }
+
+        if (this.currentBgm) this.currentBgm.playbackRate = 1.0;
+
+        // Reset Moon
+        (this.moonMesh.material as THREE.MeshBasicMaterial).color.set(0xe0e0e0);
+        this.moonMesh.scale.setScalar(1.0);
+
+        switch (type) {
+            case 'storm':
+                if (this.weatherOverlayEl) this.weatherOverlayEl.style.background = 'rgba(0, 0, 50, 0.4)';
+                if (this.currentBgm) this.currentBgm.playbackRate = 0.9;
+                break;
+            case 'sandstorm':
+                if (this.weatherOverlayEl) this.weatherOverlayEl.style.background = 'rgba(139, 69, 19, 0.4)';
+                if (this.currentBgm) this.currentBgm.playbackRate = 0.95;
+                break;
+            case 'bloodmoon':
+                if (this.weatherOverlayEl) this.weatherOverlayEl.style.background = 'rgba(139, 0, 0, 0.4)';
+                if (this.currentBgm) this.currentBgm.playbackRate = 0.85;
+                (this.moonMesh.material as THREE.MeshBasicMaterial).color.set(0xff0000);
+                this.moonMesh.scale.setScalar(3.0);
+                break;
+        }
+
+        this.showNotification(`EXTREME WEATHER: ${type === 'none' ? 'NORMAL' : type.toUpperCase()}`);
+    }
+
+    updateWeather(dt: number) {
+        this.weatherTimer -= dt;
+        if (this.weatherTimer <= 0) {
+            // Let cycle timer handle reset
+        }
+
+        if (this.weatherType === 'storm') {
+            this.lightningTimer -= dt;
+            if (this.lightningTimer <= 0) {
+                this.lightningTimer = 3 + Math.random() * 5;
+                // Flash
+                if (this.weatherOverlayEl) this.weatherOverlayEl.style.background = 'rgba(255, 255, 255, 0.8)';
+
+                // Heavy & Slow Shake for Lightning
+                this.triggerCameraShake(1.0, 0.5, 10);
+
+                if (this.thunderSfx) this.thunderSfx.play().catch(() => { });
+                setTimeout(() => {
+                    if (this.weatherType === 'storm' && this.weatherOverlayEl) {
+                        this.weatherOverlayEl.style.background = 'rgba(0, 0, 50, 0.4)';
+                    }
+                }, 100);
+            }
+        }
     }
 
     showFloatingText(text: string, pos: THREE.Vector3, color: string) {
@@ -1434,9 +1595,17 @@ export default class Game {
         }, 1000);
     }
 
-    triggerCameraShake(intensity: number) {
-        this.shakeTime = 0.2;
-        this.shakeIntensity = intensity;
+    triggerCameraShake(intensity: number, duration: number = 0.2, frequency: number = 60) {
+        // Smart Cooldown: If already shaking significantly, just extend slightly
+        if (this.shakeTime > 0.05) {
+            this.shakeTime = Math.min(this.shakeTime + 0.05, 0.3); // Cap extension
+            this.shakeIntensity = Math.min(this.MAX_SHAKE_INTENSITY, Math.max(this.shakeIntensity, intensity));
+            return;
+        }
+
+        this.shakeTime = duration;
+        this.shakeIntensity = Math.min(this.MAX_SHAKE_INTENSITY, intensity);
+        this.shakeFrequency = frequency;
     }
 
     hitStop(duration: number) {
@@ -1480,12 +1649,18 @@ export default class Game {
             this.clock.getDelta(); // Keep clock updating
         }
 
-        // Camera Shake Update (runs even during hitstop for effect)
+        // Camera Shake Update
         if (this.shakeTime > 0) {
-            this.shakeTime -= 0.016; // Approx 60fps
-            const currentIntensity = this.shakeIntensity * (this.shakeTime / 0.2);
-            this.camera.position.x = this.cameraBasePos.x + (Math.random() - 0.5) * currentIntensity;
-            this.camera.position.y = this.cameraBasePos.y + (Math.random() - 0.5) * currentIntensity;
+            this.shakeTime -= 0.016;
+
+            // Normalized fade out
+            const fade = Math.min(1.0, this.shakeTime / 0.2);
+            const currentIntensity = this.shakeIntensity * fade;
+
+            const time = Date.now() * 0.001 * this.shakeFrequency;
+            // Use sin/cos for smoother high-quality oscillations
+            this.camera.position.x = this.cameraBasePos.x + Math.sin(time) * currentIntensity;
+            this.camera.position.y = this.cameraBasePos.y + Math.cos(time * 1.1) * currentIntensity;
         } else {
             this.camera.position.copy(this.cameraBasePos);
         }

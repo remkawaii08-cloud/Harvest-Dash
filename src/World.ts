@@ -12,9 +12,12 @@ export default class World {
 
     obstaclePool: Record<string, THREE.Mesh[]>;
     coinPool: THREE.Mesh[];
-    floorPool: THREE.Group[]; // Keeping it if you plan to use it, though seemingly unused in snippet
+    jadePool: THREE.Mesh[] = [];
+    jades: THREE.Mesh[] = [];
     particles: THREE.Mesh[];
     decals: THREE.Mesh[] = [];
+    jadeMaterial?: THREE.MeshStandardMaterial;
+    weatherParticles!: THREE.Points;
 
     dirtTexture?: THREE.CanvasTexture;
     grassTexture?: THREE.CanvasTexture;
@@ -34,7 +37,6 @@ export default class World {
 
         this.obstaclePool = { crate: [], hay: [], rock: [], double_crate: [] };
         this.coinPool = [];
-        this.floorPool = [];
         this.particles = [];
 
         this.init();
@@ -45,6 +47,27 @@ export default class World {
         for (let i = 0; i < 5; i++) {
             this.spawnFloor(-i * this.segmentLength);
         }
+
+        this.initWeatherParticles();
+    }
+
+    initWeatherParticles() {
+        const count = 2000;
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array(count * 3);
+        for (let i = 0; i < count * 3; i++) {
+            pos[i] = (Math.random() - 0.5) * 40;
+        }
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        const mat = new THREE.PointsMaterial({
+            size: 0.1,
+            transparent: true,
+            opacity: 0.6,
+            color: 0xffffff
+        });
+        this.weatherParticles = new THREE.Points(geo, mat);
+        this.game.scene.add(this.weatherParticles);
+        this.weatherParticles.visible = false;
     }
 
     reset() {
@@ -72,6 +95,12 @@ export default class World {
         this.decals = [];
 
         this.lastSpawnZ = 0;
+
+        this.jades.forEach(j => {
+            j.visible = false;
+            this.jadePool.push(j);
+        });
+        this.jades = [];
 
         for (let i = 0; i < 6; i++) { // Increased to 6 segments for further view distance
             this.spawnFloor(-i * this.segmentLength);
@@ -437,11 +466,60 @@ export default class World {
         this.coins.push(coin);
     }
 
-    update(dt: number, speed: number, playerMesh: THREE.Mesh, magnetActive: boolean) {
+    spawnJade(pos: THREE.Vector3) {
+        let jade;
+        if (this.jadePool.length > 0) {
+            jade = this.jadePool.pop()!;
+            jade.visible = true;
+        } else {
+            const geo = new THREE.IcosahedronGeometry(0.4, 0); // Gem shape
+            if (!this.jadeMaterial) {
+                this.jadeMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x4CAF50,
+                    emissive: 0x4CAF50,
+                    emissiveIntensity: 0.8,
+                    metalness: 0.8,
+                    roughness: 0.2
+                });
+            }
+            jade = new THREE.Mesh(geo, this.jadeMaterial);
+            this.game.scene.add(jade);
+        }
+        jade.position.copy(pos);
+        jade.position.y = 0.8;
+        jade.userData.bobOffset = Math.random() * 1000;
+        jade.rotation.set(Math.random(), Math.random(), Math.random());
+        this.jades.push(jade);
+    }
+
+    checkJadeCollision(playerMesh: THREE.Mesh) {
+        let collected = 0;
+        const playerBox = new THREE.Box3().setFromObject(playerMesh);
+        playerBox.expandByScalar(-0.1);
+
+        for (let i = this.jades.length - 1; i >= 0; i--) {
+            const jade = this.jades[i];
+            const jadeBox = new THREE.Box3().setFromObject(jade);
+            if (playerBox.intersectsBox(jadeBox)) {
+                jade.visible = false;
+                this.jadePool.push(jade);
+                this.jades.splice(i, 1);
+                collected++;
+            }
+        }
+        return collected;
+    }
+
+    updateJadeGlow(intensity: number) {
+        if (this.jadeMaterial) {
+            this.jadeMaterial.emissiveIntensity = intensity;
+        }
+    }
+
+    update(dt: number, speed: number, playerMesh: THREE.Mesh | null = null, magnetActive: boolean = false) {
         const moveDistance = speed * dt;
 
         // Move Floors
-        // ... (existing floor logic)
         for (let i = this.floorSegments.length - 1; i >= 0; i--) {
             const floor = this.floorSegments[i];
             floor.position.z += moveDistance;
@@ -451,7 +529,7 @@ export default class World {
                 this.floorSegments.forEach(f => minZ = Math.min(minZ, f.position.z));
                 floor.position.z = minZ - this.segmentLength;
 
-                const spawnCount = 8;
+                const spawnCount = this.game.weatherType === 'bloodmoon' ? 16 : 8;
                 const step = this.segmentLength / spawnCount;
 
                 for (let j = 0; j < spawnCount; j++) {
@@ -466,6 +544,33 @@ export default class World {
             }
         }
 
+        // Update Weather Particles
+        if (this.game.weatherType !== 'none') {
+            this.weatherParticles.visible = true;
+            const positions = this.weatherParticles.geometry.attributes.position.array as Float32Array;
+            for (let i = 0; i < positions.length; i += 3) {
+                if (this.game.weatherType === 'storm') {
+                    positions[i + 1] -= dt * 20; // Rain fall
+                    if (positions[i + 1] < 0) positions[i + 1] = 20;
+                    (this.weatherParticles.material as THREE.PointsMaterial).color.set(0xaaaaaa);
+                } else if (this.game.weatherType === 'sandstorm') {
+                    positions[i + 1] -= dt * 2;
+                    positions[i] -= dt * 10; // Wind blow
+                    if (positions[i] < -20) positions[i] = 20;
+                    if (positions[i + 1] < 0) positions[i + 1] = 10;
+                    (this.weatherParticles.material as THREE.PointsMaterial).color.set(0x8B4513);
+                } else if (this.game.weatherType === 'bloodmoon') {
+                    positions[i + 1] -= dt * 1;
+                    if (positions[i + 1] < 0) positions[i + 1] = 20;
+                    (this.weatherParticles.material as THREE.PointsMaterial).color.set(0xff0000);
+                }
+            }
+            this.weatherParticles.geometry.attributes.position.needsUpdate = true;
+            this.weatherParticles.position.set(0, 0, this.game.player.mesh.position.z - 10);
+        } else {
+            this.weatherParticles.visible = false;
+        }
+
         // Move Obstacles
         for (let i = this.obstacles.length - 1; i >= 0; i--) {
             const obs = this.obstacles[i];
@@ -477,6 +582,31 @@ export default class World {
                 if (!this.obstaclePool[type]) this.obstaclePool[type] = [];
                 this.obstaclePool[type].push(obs);
                 this.obstacles.splice(i, 1);
+            }
+        }
+
+        // Move Jades & Animate
+        for (let i = this.jades.length - 1; i >= 0; i--) {
+            const jade = this.jades[i];
+
+            // Magnet Attraction Logic
+            if (magnetActive && playerMesh) {
+                const dist = jade.position.distanceTo(playerMesh.position);
+                if (dist < 8.0) {
+                    const attractionSpeed = 15;
+                    const dir = playerMesh.position.clone().sub(jade.position).normalize();
+                    jade.position.add(dir.multiplyScalar(attractionSpeed * dt));
+                }
+            }
+
+            jade.position.z += moveDistance;
+            jade.rotation.y += 3 * dt;
+            jade.position.y = 0.8 + Math.sin(Date.now() * 0.005 + jade.userData.bobOffset) * 0.1;
+
+            if (jade.position.z > 10) {
+                jade.visible = false;
+                this.jadePool.push(jade);
+                this.jades.splice(i, 1);
             }
         }
 
@@ -564,40 +694,36 @@ export default class World {
             canvas.width = 64; canvas.height = 64;
             const ctx = canvas.getContext('2d')!;
 
-            // Black Charred Square
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, 64, 64);
-
-            // Glowing Orange Core
-            const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 25);
-            grad.addColorStop(0, '#FFFFFF'); // Hot center
-            grad.addColorStop(0.2, '#FFD700'); // Gold/Yellow
-            grad.addColorStop(0.5, '#FF4500'); // Orange
-            grad.addColorStop(1, 'rgba(0,0,0,0)'); // Transparent edges
+            // Semi-transparent charred black mark
+            ctx.clearRect(0, 0, 64, 64);
+            const grad = ctx.createRadialGradient(32, 32, 5, 32, 32, 30);
+            grad.addColorStop(0, 'rgba(0, 0, 0, 0.8)');
+            grad.addColorStop(0.5, 'rgba(20, 20, 20, 0.6)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
             ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, 64, 64);
-
-            // Cracked details
-            ctx.strokeStyle = '#221100';
-            ctx.lineWidth = 1;
-            for (let i = 0; i < 10; i++) {
-                ctx.beginPath();
-                ctx.moveTo(Math.random() * 64, Math.random() * 64);
-                ctx.lineTo(Math.random() * 64, Math.random() * 64);
-                ctx.stroke();
+            ctx.beginPath();
+            // Irregular shape for charring
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const r = 20 + Math.random() * 12;
+                const x = 32 + Math.cos(angle) * r;
+                const y = 32 + Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
             }
+            ctx.closePath();
+            ctx.fill();
 
             this.burnMarkTexture = new THREE.CanvasTexture(canvas);
         }
 
-        const geo = new THREE.PlaneGeometry(1.5, 1.5);
+        const geo = new THREE.PlaneGeometry(1.2, 1.2);
         const mat = new THREE.MeshStandardMaterial({
             map: this.burnMarkTexture,
             transparent: true,
-            opacity: 1,
-            depthWrite: false, // Prevent flickering
-            emissive: 0xFF4500,
-            emissiveIntensity: 0.5
+            opacity: 0.7,
+            depthWrite: false,
+            color: 0x000000
         });
 
         const decal = new THREE.Mesh(geo, mat);

@@ -24,6 +24,11 @@ export default class Player {
     wasInAir: boolean = false;
     shimmerTimer: number = 0;
     coinTrailTimer: number = 0;
+    flareTimer: number = 0;
+
+    // Molten Core specific
+    moltenPointLight!: THREE.PointLight;
+    moltenHalo!: THREE.Mesh;
 
     constructor(game: Game) {
         this.game = game;
@@ -88,14 +93,26 @@ export default class Player {
         // Controls
         window.addEventListener('keydown', (e) => this.onKeyDown(e));
 
-        // Cosmetic: Horse Shoe NFT
-        const shoeGeo = new THREE.TorusGeometry(0.2, 0.05, 8, 16, Math.PI);
-        const shoeMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 1.0, roughness: 0.2 });
         this.horseShoe = new THREE.Mesh(shoeGeo, shoeMat);
         this.horseShoe.position.set(0, 0.3, 0.6); // Behind player
         this.horseShoe.rotation.z = Math.PI;
         this.horseShoe.visible = false;
         this.mesh.add(this.horseShoe); // Attach to player mesh
+
+        // Molten Core Effects
+        this.moltenPointLight = new THREE.PointLight(0xFF4500, 0, 10);
+        this.game.scene.add(this.moltenPointLight);
+
+        const haloGeo = new THREE.SphereGeometry(0.8, 16, 16);
+        const haloMat = new THREE.MeshBasicMaterial({
+            color: 0xFF4500,
+            transparent: true,
+            opacity: 0,
+            side: THREE.BackSide,
+            blending: THREE.AdditiveBlending
+        });
+        this.moltenHalo = new THREE.Mesh(haloGeo, haloMat);
+        this.mesh.add(this.moltenHalo);
 
         this.updateCosmetic();
     }
@@ -145,13 +162,26 @@ export default class Player {
             this.velocity = 12.0;
             this.isJumping = true;
             this.game.playSfx('jump');
+            if (this.game.equippedSkin === 'Molten Core') {
+                this.flareTimer = 0.5;
+            }
         }
     }
 
     update(dt: number, speed: number) {
-        // Horizontal Movement (Smooth Lerp)
+        // Horizontal Movement (Smooth Lerp + Weather Effects)
         const targetX = this.lane * this.laneWidth;
-        this.mesh.position.x += (targetX - this.mesh.position.x) * 10 * dt;
+        let lerpFactor = 10;
+        let windX = 0;
+
+        if (this.game.weatherType === 'sandstorm') {
+            lerpFactor = 4; // Harder to switch lanes
+            windX = Math.sin(Date.now() * 0.003) * 0.8; // Constant buffeting
+        }
+
+        this.mesh.position.x += (targetX + windX - this.mesh.position.x) * lerpFactor * dt;
+        // Clamp to avoid going off-screen
+        this.mesh.position.x = Math.max(-2, Math.min(2, this.mesh.position.x));
 
         // Jumping Logic
         if (this.isJumping) {
@@ -208,6 +238,29 @@ export default class Player {
             this.mesh.visible = Math.floor(Date.now() / 100) % 2 === 0;
         } else if (this.game.isPlaying) {
             this.mesh.visible = true;
+        }
+
+        // Molten Core Dynamic Logic
+        if (this.game.equippedSkin === 'Molten Core') {
+            const time = Date.now() * 0.005;
+            const pulse = 0.5 + Math.sin(time) * 0.5;
+            const mat = this.mesh.material as THREE.MeshStandardMaterial;
+            const haloMat = this.moltenHalo.material as THREE.MeshBasicMaterial;
+
+            // Flare logic
+            if (this.flareTimer > 0) this.flareTimer -= dt;
+            const flare = this.flareTimer > 0 ? (this.flareTimer / 0.5) * 2 : 0;
+
+            mat.emissiveIntensity = 1.0 + pulse * 1.0 + flare;
+            haloMat.opacity = (0.2 + pulse * 0.2 + flare * 0.3) * (this.game.isPlaying ? 1 : 0);
+
+            this.moltenPointLight.position.copy(this.mesh.position);
+            this.moltenPointLight.intensity = (2.0 + pulse * 2.0 + flare * 4.0) * (this.game.isPlaying ? 1 : 0);
+            this.moltenPointLight.color.setHex(this.flareTimer > 0 ? 0xFFAA00 : 0xFF4500);
+            this.moltenHalo.visible = true;
+        } else {
+            this.moltenPointLight.intensity = 0;
+            this.moltenHalo.visible = false;
         }
     }
 
@@ -307,9 +360,13 @@ export default class Player {
                 mat.emissiveIntensity = 1.0;
                 mat.metalness = 0.5;
                 mat.roughness = 0.4;
+                this.moltenPointLight.intensity = 5;
+                this.moltenHalo.visible = true;
                 break;
             default:
                 mat.color.set('#D2691E');
+                this.moltenPointLight.intensity = 0;
+                this.moltenHalo.visible = false;
         }
     }
 
@@ -396,34 +453,36 @@ export default class Player {
                 this.coinTrailTimer = 0;
             }
         } else if (skin === 'Molten Core') {
-            // Core Pulsing
-            const mat = this.mesh.material as THREE.MeshStandardMaterial;
-            mat.emissiveIntensity = 1.5 + Math.sin(Date.now() * 0.005) * 0.5;
-
-            // Heat Waves (Distorted air effect using thin, fast-dying particles)
-            if (this.trailTimer > 0.05) {
-                const heatPos = pos.clone().add(new THREE.Vector3(
-                    (Math.random() - 0.5) * 2,
+            // Heat Smoke & Embers
+            if (this.trailTimer > 0.08) {
+                const smokePos = pos.clone().add(new THREE.Vector3(
                     (Math.random() - 0.5) * 0.5,
-                    (Math.random() - 0.5) * 2
+                    -0.5,
+                    (Math.random() - 0.5) * 0.5
                 ));
-                // Transparent, fast-rising orange particles
-                this.game.world.spawnGenericParticles(heatPos, 1, 0xFF8C00, 0.3, 2, 0.4, true);
+                // Dark grey particles for smoke/steam
+                this.game.world.spawnGenericParticles(smokePos, 1, 0x222222, 0.2, 1.5, 1.2, false);
+
+                // Occasional Embers
+                if (Math.random() < 0.4) {
+                    const emberPos = pos.clone().add(new THREE.Vector3(
+                        (Math.random() - 0.5) * 1,
+                        (Math.random() - 0.5) * 1,
+                        (Math.random() - 0.5) * 1
+                    ));
+                    this.game.world.spawnGenericParticles(emberPos, 2, 0xFF8C00, 0.05, 3, 0.6, true);
+                }
+
                 this.trailTimer = 0;
             }
 
-            // Ground Melting (Small embers)
-            if (this.effectTimer > 0.1) {
-                this.game.world.spawnGenericParticles(footPos, 2, 0xFF4500, 0.1, 0.5, 0.6, true);
-                this.effectTimer = 0;
-            }
-
-            // Scorched Earth Decals
+            // Burnt Tracks
             this.burnTimer += dt;
-            if (this.burnTimer >= 0.1 && !this.isJumping) {
+            if (this.burnTimer >= 0.12 && !this.isJumping) {
                 this.game.world.spawnBurnMark(this.mesh.position);
                 this.burnTimer = 0;
             }
         }
     }
+}
 }
