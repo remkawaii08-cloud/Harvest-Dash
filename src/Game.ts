@@ -440,13 +440,6 @@ export default class Game {
         tabSkins.addEventListener('click', () => switchTab(tabSkins, contentSkins));
         tabMint.addEventListener('click', () => switchTab(tabMint, contentMint));
 
-        // Developer Tools: Reset All
-        document.getElementById('reset-all-btn')!.addEventListener('click', () => {
-            if (confirm('Clear all data and start from scratch? This will reload the page.')) {
-                localStorage.clear();
-                window.location.reload();
-            }
-        });
 
         // Keyboard Shortcut for Pause, Items & Cheats
         window.addEventListener('keydown', (e) => {
@@ -458,23 +451,6 @@ export default class Game {
             }
 
             // CHEAT KEYS
-            if (e.code === 'KeyG') {
-                this.totalGold += 500;
-                this.saveData();
-                this.updateShopUI();
-                if (this.totalGoldHudEl) this.totalGoldHudEl.innerText = this.totalGold.toString();
-                this.updateStartUI();
-                this.showNotification('+500 GOLD (CHEAT)');
-            }
-            if (e.code === 'KeyL') {
-                this.totalJades += 200;
-                this.inventory.potion = (this.inventory.potion || 0) + 5;
-                this.inventory.magnet = (this.inventory.magnet || 0) + 5;
-                this.saveData();
-                this.updateShopUI();
-                this.updateBagUI();
-                this.showNotification('ITEMS, JUMP & JADES (CHEAT)');
-            }
 
             if (e.code === 'KeyB' || e.code === 'Escape') {
                 if (this.bagScreen.classList.contains('active')) {
