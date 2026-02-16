@@ -22,6 +22,8 @@ export default class Player {
     trailTimer: number = 0;
     burnTimer: number = 0;
     wasInAir: boolean = false;
+    shimmerTimer: number = 0;
+    coinTrailTimer: number = 0;
 
     constructor(game: Game) {
         this.game = game;
@@ -198,6 +200,14 @@ export default class Player {
         if (this.horseShoe.visible) {
             this.horseShoe.rotation.y += dt * 5;
         }
+
+        // Iron Potion Blinking Warning
+        if (this.game.potionActive && this.game.potionTimer <= 3) {
+            // Blink every 100ms
+            this.mesh.visible = Math.floor(Date.now() / 100) % 2 === 0;
+        } else if (this.game.isPlaying) {
+            this.mesh.visible = true;
+        }
     }
 
     setMagnetEffect(enabled: boolean) {
@@ -254,9 +264,12 @@ export default class Player {
                 mat.roughness = 0.5;
                 break;
             case 'Golden Dash':
-                mat.color.set('#FFD700'); // Bright Gold
+                mat.color.set('#FFD700'); // Gold Bar
                 mat.metalness = 1.0;
-                mat.roughness = 0.1;
+                mat.roughness = 0.2;
+                mat.emissive.set('#997700'); // Edges glow
+                mat.emissiveIntensity = 0.5;
+                mat.map = null; // Force-remove Classic Farmer texture
                 break;
             case 'Molten Core':
                 // Procedural Molten Texture
@@ -348,15 +361,38 @@ export default class Player {
                 this.trailTimer = 0;
             }
         } else if (skin === 'Golden Dash') {
-            // Constant Star Sparkles
-            if (this.effectTimer > 0.1) {
-                const starPos = pos.clone().add(new THREE.Vector3(
+            // High-Gloss Shine Animation (Shimmer)
+            this.shimmerTimer += dt;
+            const mat = this.mesh.material as THREE.MeshStandardMaterial;
+            if (this.shimmerTimer > 2.0) { // Every 2 seconds
+                const shine = (Math.sin(Date.now() * 0.01) * 0.5) + 0.5;
+                mat.emissiveIntensity = 1.5 * shine;
+                if (this.shimmerTimer > 2.5) {
+                    this.shimmerTimer = 0;
+                }
+            } else {
+                mat.emissiveIntensity = 0.5;
+            }
+
+            // Forced Yellow Sparkle Particle Trail
+            // Emit 5 particles every 0.1s
+            if (this.trailTimer > 0.1) {
+                const trailPos = pos.clone().add(new THREE.Vector3(0, 0, 0.5)); // Emit behind player
+                // Spawn 5 star-like particles
+                this.game.world.spawnGenericParticles(trailPos, 5, 0xFFFF00, 0.2, 2, 0.8, true);
+                this.trailTimer = 0;
+            }
+
+            // Tiny Sparkling Diamonds (Faster, smaller)
+            this.coinTrailTimer += dt;
+            if (this.coinTrailTimer > 0.15) {
+                const diaPos = pos.clone().add(new THREE.Vector3(
                     (Math.random() - 0.5) * 1.5,
                     (Math.random() - 0.5) * 1.5,
-                    (Math.random() - 0.5) * 1.5
+                    0.8
                 ));
-                this.game.world.spawnGenericParticles(starPos, 1, 0xFFFF00, 0.1, 1, 0.8, true);
-                this.effectTimer = 0;
+                this.game.world.spawnGenericParticles(diaPos, 1, 0xFFFFFF, 0.1, 3, 0.5, true);
+                this.coinTrailTimer = 0;
             }
         } else if (skin === 'Molten Core') {
             // Core Pulsing

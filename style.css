@@ -50,6 +50,30 @@ canvas {
   align-items: center;
 }
 
+.music-toggle {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  background: #deb887;
+  border: 4px solid #8b4513;
+  border-radius: 10px;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 0 #5d2e0a;
+  z-index: 1001;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.music-toggle:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #5d2e0a;
+}
+
 .screen {
   background: var(--wood-light);
   padding: clamp(1rem, 5vw, 4rem);
@@ -596,5 +620,109 @@ button:hover {
     transform: scale(1.05);
     opacity: 1;
     border-color: #FFFF00;
+  }
+}
+
+/* Quest Styles */
+.quest-item {
+  background: rgba(0, 0, 0, 0.4);
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 8px;
+  border: 2px solid #555;
+  text-align: left;
+}
+
+.quest-item.completed {
+  border-color: #8BC34A;
+}
+
+.quest-title {
+  font-size: 1.4rem;
+  color: #FFD700;
+  margin-bottom: 5px;
+}
+
+.progress-container {
+  width: 100%;
+  height: 20px;
+  background: #222;
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 10px 0;
+  border: 1px solid #444;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4CAF50, #8BC34A);
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.quest-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.reward-info {
+  font-size: 1.1rem;
+  color: #FFD700;
+}
+
+.claim-btn {
+  background: #FF9800 !important;
+  color: #fff !important;
+  border-color: #E65100 !important;
+  padding: 4px 12px !important;
+  font-size: 1rem !important;
+  animation: pulse 1s infinite alternate;
+}
+
+.claim-btn:disabled {
+  background: #555 !important;
+  border-color: #333 !important;
+  animation: none;
+  opacity: 0.5;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+
+  100% {
+    transform: scale(1.05);
+  }
+}
+
+.golden-glint {
+  position: relative;
+  overflow: hidden;
+}
+
+.golden-glint::after {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: -100%;
+  width: 300%;
+  height: 300%;
+  background: linear-gradient(45deg, transparent 45%, rgba(255, 255, 255, 0.8) 50%, transparent 55%);
+  animation: glintMove 3s infinite;
+}
+
+@keyframes glintMove {
+  0% {
+    transform: translate(-20%, -20%);
+  }
+
+  20% {
+    transform: translate(20%, 20%);
+  }
+
+  100% {
+    transform: translate(20%, 20%);
   }
 }

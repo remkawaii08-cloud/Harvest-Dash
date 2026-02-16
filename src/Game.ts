@@ -105,6 +105,19 @@ export default class Game {
     reviveBtn!: HTMLButtonElement;
     reviveCountdownEl!: HTMLElement;
 
+    // Quest System
+    quests: any[] = [];
+    questsScreen!: HTMLElement;
+    questsListEl!: HTMLElement;
+    questProgress: { [key: string]: number } = {};
+
+    // Audio
+    bgm!: HTMLAudioElement;
+    menuBgm!: HTMLAudioElement;
+    currentBgm: HTMLAudioElement | null = null;
+    isMuted: boolean = false;
+    musicFadeInterval: any = null;
+
     constructor() {
         console.log('%cTesting Mode Active: Press G for Gold, L for Items/Jump, Reset Button in Shop', 'color: #00ffff; font-weight: bold; font-size: 1.2rem;');
 
@@ -117,14 +130,70 @@ export default class Game {
         this.inventory = JSON.parse(localStorage.getItem('inventory') || '{"magnet": 0, "potion": 0}');
         this.hasUnlockedJump = true; // Always unlocked now
         this.hasHorseshoe = localStorage.getItem('hasHorseshoe') === 'true';
+        this.isMuted = localStorage.getItem('isMuted') === 'true';
 
         // Skins
         const defaultSkins = ['Classic Farmer'];
         this.ownedSkins = JSON.parse(localStorage.getItem('ownedSkins') || JSON.stringify(defaultSkins));
         this.equippedSkin = localStorage.getItem('equippedSkin') || 'Classic Farmer';
+
+        this.initQuests();
     }
 
+    initQuests() {
+        const today = new Date().toDateString();
+        const savedDay = localStorage.getItem('questDate');
+
+        // Quests Definitions
+        this.quests = [
+            { id: 'stones', title: 'Break 20 Stones', goal: 20, reward: 50, type: 'stones' },
+            { id: 'distance', title: 'Reach 3,000m in one run', goal: 3000, reward: 100, type: 'distance' },
+            { id: 'jades', title: 'Collect 5 Jades', goal: 5, reward: 150, type: 'jades' }
+        ];
+
+        if (savedDay !== today) {
+            this.questProgress = { stones: 0, distance: 0, jades: 0 };
+            localStorage.setItem('questDate', today);
+            localStorage.setItem('questProgress', JSON.stringify(this.questProgress));
+            localStorage.setItem('questsClaimed', JSON.stringify({}));
+        } else {
+            this.questProgress = JSON.parse(localStorage.getItem('questProgress') || '{"stones": 0, "distance": 0, "jades": 0}');
+        }
+
+        this.questsClaimed = JSON.parse(localStorage.getItem('questsClaimed') || '{}');
+    }
+
+    questsClaimed: { [key: string]: boolean } = {};
+
     init() {
+        // Audio Setup
+        this.bgm = new Audio('https://www.chosic.com/wp-content/uploads/2021/04/Alexander-Nakarada-Farm.mp3');
+        this.bgm.loop = true;
+        this.bgm.volume = this.isMuted ? 0 : 0.5;
+
+        this.menuBgm = new Audio('https://www.chosic.com/wp-content/uploads/2021/07/Country-Village.mp3');
+        this.menuBgm.loop = true;
+        this.menuBgm.volume = this.isMuted ? 0 : 0.5;
+
+        // Auto-play on first interaction
+        const startAudio = () => {
+            if (!this.isPlaying) {
+                this.switchMusic('menu');
+            } else {
+                this.switchMusic('game');
+            }
+            this.updateMusicButtons();
+            window.removeEventListener('mousedown', startAudio);
+            window.removeEventListener('keydown', startAudio);
+            window.removeEventListener('touchstart', startAudio);
+        };
+        window.addEventListener('mousedown', startAudio);
+        window.addEventListener('keydown', startAudio);
+        window.addEventListener('touchstart', startAudio);
+
+        document.getElementById('music-toggle-start')!.addEventListener('click', () => this.toggleMusic());
+        document.getElementById('music-toggle-pause')!.addEventListener('click', () => this.toggleMusic());
+
         // Scene Setup
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.FogExp2(0x87CEEB, 0.02); // Sky Blue Fog
@@ -235,6 +304,12 @@ export default class Game {
         // Shop Listeners
         document.getElementById('shop-btn-start')!.addEventListener('click', () => this.openShop());
         document.getElementById('shop-btn-over')!.addEventListener('click', () => this.openShop());
+
+        // Quest Listeners
+        this.questsScreen = document.getElementById('quests-screen')!;
+        this.questsListEl = document.getElementById('quests-list')!;
+        document.getElementById('quests-btn-start')!.addEventListener('click', () => this.openQuests());
+        document.getElementById('close-quests-btn')!.addEventListener('click', () => this.closeQuests());
         document.getElementById('shop-btn-pause')!.addEventListener('click', () => this.openShop());
 
         document.getElementById('shop-back')!.addEventListener('click', () => this.closeShop());
@@ -401,7 +476,7 @@ export default class Game {
     activatePotion(customDuration?: number) {
         this.potionActive = true;
 
-        let duration = customDuration !== undefined ? customDuration : 10; // Base duration seconds
+        let duration = customDuration !== undefined ? customDuration : 20; // Base duration seconds
         if (customDuration === undefined && this.equippedSkin === 'Iron Knight') {
             duration += 3; // Exactly +3s
             this.showNotification('IRON KNIGHT BONUS: +3s Potion!');
@@ -461,6 +536,7 @@ export default class Game {
     }
 
     goToMainMenu() {
+        this.switchMusic('menu');
         this.isPlaying = false;
         this.gameIsOver = false;
 
@@ -628,6 +704,11 @@ export default class Game {
             preview.style.backgroundColor = skin.color;
             preview.style.marginBottom = '5px';
             preview.style.border = '2px solid #fff';
+
+            if (skin.name === 'Golden Dash') {
+                preview.style.boxShadow = '0 0 10px #FFD700, inset 0 0 10px #FFFFFF';
+                preview.classList.add('golden-glint');
+            }
 
             const nameDiv = document.createElement('div');
             nameDiv.innerText = skin.name;
@@ -822,6 +903,7 @@ export default class Game {
     }
 
     start() {
+        this.switchMusic('game');
         this.isPlaying = true;
         this.gameIsOver = false;
         this.runCoins = 0;
@@ -928,6 +1010,7 @@ export default class Game {
     }
 
     gameOver() {
+        this.switchMusic('menu');
         this.isPlaying = false;
         this.gameIsOver = true;
         this.clock.stop();
@@ -1052,6 +1135,11 @@ export default class Game {
         const currDist = Math.floor(this.runDistance);
         this.distanceHudEl.innerText = currDist.toString().padStart(4, '0') + 'm';
 
+        // Quest Progress: Distance
+        if (currDist > this.questProgress.distance) {
+            this.updateQuestProgress('distance', currDist, true);
+        }
+
         // Milestone Effect: Every 500m
         if (Math.floor(currDist / 500) > Math.floor(prevDist / 500)) {
             this.showNotification('SPEED UP! ⚡');
@@ -1077,6 +1165,7 @@ export default class Game {
                 this.potionActive = false;
                 this.potionTimer = 0;
                 this.player.setMetallicSkin(false);
+                this.player.mesh.visible = true; // Ensure visibility
                 this.potionHudEl.style.display = 'none';
                 this.showNotification('IRON BODY ENDED');
             } else {
@@ -1148,7 +1237,10 @@ export default class Game {
         this.world.update(dt, this.speed, this.player.mesh, this.magnetActive);
 
         // Coin Check
-        const magnetRadius = this.magnetActive ? 4.0 : 0; // Much larger radius
+        let magnetRadius = this.magnetActive ? 4.0 : 0; // Much larger radius
+        if (this.equippedSkin === 'Golden Dash') {
+            magnetRadius += 0.5; // Passive buff: 20% of base-ish or just a flat bonus
+        }
         let coinsCollected = this.world.checkCoinCollision(this.player.mesh, magnetRadius);
 
         // Golden Dash Ability: 5x Gold
@@ -1188,6 +1280,11 @@ export default class Game {
                 // Play break effect
                 this.world.breakObstacle(obs);
 
+                // Quest Progress: Stones
+                if (obs.userData.type === 'rock') {
+                    this.updateQuestProgress('stones', 1);
+                }
+
                 // Jade Drop Logic (All Obstacles)
                 this.checkJadeDrop(obs.position);
 
@@ -1211,6 +1308,10 @@ export default class Game {
     checkJadeDrop(pos: THREE.Vector3) {
         if (Math.random() < 0.65) { // 65% Jade Drop Chance
             this.totalJades++;
+
+            // Quest Progress: Jades
+            this.updateQuestProgress('jades', 1);
+
             this.saveData();
             this.showFloatingText('+1 JADE', pos, '#4CAF50');
             if (this.totalJadesHudEl) this.totalJadesHudEl.innerText = this.totalJades.toString();
@@ -1316,5 +1417,152 @@ export default class Game {
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // Quest System Methods
+    updateQuestProgress(type: string, amount: number, isDirect: boolean = false) {
+        if (isDirect) {
+            if (amount > this.questProgress[type]) {
+                this.questProgress[type] = amount;
+            }
+        } else {
+            this.questProgress[type] = (this.questProgress[type] || 0) + amount;
+        }
+
+        // Snap to goal
+        const quest = this.quests.find(q => q.type === type);
+        if (quest && this.questProgress[type] > quest.goal) {
+            this.questProgress[type] = quest.goal;
+        }
+
+        localStorage.setItem('questProgress', JSON.stringify(this.questProgress));
+
+        // If quests screen is open, re-render
+        if (this.questsScreen && this.questsScreen.classList.contains('active')) {
+            this.renderQuests();
+        }
+    }
+
+    openQuests() {
+        this.renderQuests();
+        this.questsScreen.style.display = 'block';
+        setTimeout(() => this.questsScreen.classList.add('active'), 10);
+    }
+
+    closeQuests() {
+        this.questsScreen.classList.remove('active');
+        setTimeout(() => this.questsScreen.style.display = 'none', 300);
+    }
+
+    renderQuests() {
+        if (!this.questsListEl) return;
+        this.questsListEl.innerHTML = '';
+        this.quests.forEach(quest => {
+            const progress = this.questProgress[quest.type] || 0;
+            const isCompleted = progress >= quest.goal;
+            const isClaimed = this.questsClaimed[quest.id];
+
+            const questEl = document.createElement('div');
+            questEl.className = `quest-item ${isCompleted ? 'completed' : ''}`;
+
+            const percent = Math.min(100, (progress / quest.goal) * 100);
+
+            questEl.innerHTML = `
+                <div class="quest-title">${quest.title}</div>
+                <div style="font-size: 0.9rem; color: #aaa;">Progress: ${progress} / ${quest.goal}</div>
+                <div class="progress-container">
+                    <div class="progress-fill" style="width: ${percent}%"></div>
+                </div>
+                <div class="quest-footer">
+                    <div class="reward-info">Reward: <span class="coin-icon"></span>${quest.reward}G</div>
+                    <button class="claim-btn" ${(!isCompleted || isClaimed) ? 'disabled' : ''}>
+                        ${isClaimed ? 'DONE' : (isCompleted ? 'CLAIM' : 'LOCKED')}
+                    </button>
+                </div>
+            `;
+
+            if (isCompleted && !isClaimed) {
+                const claimBtn = questEl.querySelector('.claim-btn') as HTMLButtonElement;
+                claimBtn.onclick = () => this.claimQuest(quest.id);
+            }
+
+            this.questsListEl.appendChild(questEl);
+        });
+    }
+
+    claimQuest(id: string) {
+        const quest = this.quests.find(q => q.id === id);
+        if (quest && !this.questsClaimed[id]) {
+            const progress = this.questProgress[quest.type] || 0;
+            if (progress >= quest.goal) {
+                this.totalGold += quest.reward;
+                this.questsClaimed[id] = true;
+                localStorage.setItem('questsClaimed', JSON.stringify(this.questsClaimed));
+                this.saveData();
+                this.updateStartUI();
+                if (this.totalGoldHudEl) this.totalGoldHudEl.innerText = this.totalGold.toString();
+                this.showNotification(`CLAIMED ${quest.reward} GOLD!`);
+                this.renderQuests();
+            }
+        }
+    }
+
+    switchMusic(type: 'menu' | 'game') {
+        if (this.currentBgm) {
+            this.currentBgm.pause();
+        }
+
+        if (type === 'menu') {
+            this.currentBgm = this.menuBgm;
+        } else {
+            this.currentBgm = this.bgm;
+        }
+
+        if (this.currentBgm) {
+            this.currentBgm.currentTime = 0;
+            this.currentBgm.volume = this.isMuted ? 0 : 0.5;
+            this.currentBgm.play().catch(e => console.log('Audio play blocked until interaction'));
+        }
+    }
+
+    toggleMusic() {
+        this.isMuted = !this.isMuted;
+        localStorage.setItem('isMuted', this.isMuted.toString());
+
+        const targetVol = this.isMuted ? 0 : 0.5;
+        this.fadeMusic(targetVol);
+        this.updateMusicButtons();
+    }
+
+    fadeMusic(targetVolume: number) {
+        if (this.musicFadeInterval) clearInterval(this.musicFadeInterval);
+        if (!this.currentBgm) return;
+
+        const step = 0.05;
+        this.musicFadeInterval = setInterval(() => {
+            if (!this.currentBgm) {
+                clearInterval(this.musicFadeInterval);
+                return;
+            }
+
+            if (this.currentBgm.volume < targetVolume) {
+                this.currentBgm.volume = Math.min(this.currentBgm.volume + step, targetVolume);
+            } else if (this.currentBgm.volume > targetVolume) {
+                this.currentBgm.volume = Math.max(this.currentBgm.volume - step, targetVolume);
+            }
+
+            if (this.currentBgm.volume === targetVolume) {
+                clearInterval(this.musicFadeInterval);
+                this.musicFadeInterval = null;
+            }
+        }, 50);
+    }
+
+    updateMusicButtons() {
+        const icon = this.isMuted ? '🔇' : '🔊';
+        const startBtn = document.getElementById('music-toggle-start');
+        const pauseBtn = document.getElementById('music-toggle-pause');
+        if (startBtn) startBtn.innerText = icon;
+        if (pauseBtn) pauseBtn.innerText = icon;
     }
 }

@@ -18,11 +18,12 @@
     <div id="start-screen" class="screen active">
       <h1 class="main-title">HARVEST DASH</h1>
       <p>Harvest the coins, avoid the obstacles!</p>
+      <button id="music-toggle-start" class="music-toggle">🔊</button>
 
       <div class="menu-buttons">
         <button id="start-btn">START GAME</button>
         <button id="shop-btn-start">SHOP</button>
-
+        <button id="quests-btn-start" style="background: #FF9800; border-color: #E65100;">QUESTS</button>
         <button id="guide-btn-start" class="guide-btn"
           style="background: #4A148C; border-color: #9C27B0;">GUIDE</button>
       </div>
@@ -57,6 +58,14 @@
       <button id="restart-btn">Try Again</button>
       <button id="shop-btn-over" class="shop-btn">Shop</button>
       <button id="menu-btn-over" style="margin-top: 10px;">Main Menu</button>
+    </div>
+
+    <div id="quests-screen" class="screen">
+      <h1 style="color: #FF9800;">DAILY QUESTS</h1>
+      <div id="quests-list" style="margin-bottom: 20px; width: clamp(250px, 80vw, 400px);">
+        <!-- Quests will be injected here -->
+      </div>
+      <button id="close-quests-btn">CLOSE</button>
     </div>
     <div id="shop-screen" class="screen">
       <p class="balance">
@@ -111,6 +120,7 @@
     </div>
     <div id="paused-screen" class="screen">
       <h1>PAUSED</h1>
+      <button id="music-toggle-pause" class="music-toggle">🔊</button>
       <button id="resume-btn">Resume</button>
       <button id="shop-btn-pause" class="shop-btn">Shop</button>
       <button id="guide-btn-pause" class="guide-btn">Guide & Info</button>
