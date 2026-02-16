@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#FFD700" />
+  <rect x="50" y="50" width="412" height="412" fill="none" stroke="#DAA520" stroke-width="20" />
+  <text x="50%" y="50%" font-family="Arial" font-size="250" fill="#8B4513" text-anchor="middle" dy=".3em">🌾</text>
+</svg>

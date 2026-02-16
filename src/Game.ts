@@ -637,6 +637,33 @@ export default class Game {
         this.isPlaying = false;
         this.gameIsOver = false;
 
+        // Cleanup Active Effects
+        this.setWeather('none');
+        if (this.player) this.player.mesh.visible = true; // Ensure player is visible if reset during potion blink
+        if (this.potionHudEl) this.potionHudEl.style.display = 'none';
+        if (this.magnetTimerEl) this.magnetTimerEl.style.display = 'none';
+
+        // Reset Lights to Day Default
+        this.dirLight.intensity = 1.5;
+        this.dirLight.color.setHex(0xffffff);
+        this.ambientLight.intensity = 0.6;
+        this.renderer.setClearColor(0x87CEEB);
+        this.scene.fog!.color.setHex(0x87CEEB);
+        this.dayTime = 0; // Reset Day Cycle
+        if (this.stars) (this.stars.material as THREE.PointsMaterial).opacity = 0;
+        if (this.sunMesh) this.sunMesh.visible = true;
+        if (this.moonMesh) this.moonMesh.visible = false;
+
+        // Visual Cleanup
+        if (this.world && this.world.particles) {
+            this.world.particles.forEach(p => this.scene.remove(p));
+            this.world.particles = [];
+        }
+        if (this.player) {
+            if (this.player.moltenPointLight) this.player.moltenPointLight.intensity = 0;
+            if (this.player.moltenHalo) this.player.moltenHalo.visible = false;
+        }
+
         // Hide all game-run screens
         this.pausedScreen.classList.remove('active');
         this.gameOverScreen.classList.remove('active');
@@ -1027,6 +1054,8 @@ export default class Game {
         this.clock.start();
 
         // Reset objects
+        this.dayTime = 0; // Ensure day starts at 0
+        this.setWeather('none'); // Ensure clean weather state
         this.player.reset();
 
         // Magnet logic moved to useItem, but ensure it's off at start if not active
@@ -1642,30 +1671,39 @@ export default class Game {
     animate() {
         this.animationId = requestAnimationFrame(() => this.animate());
 
-        if (this.isPlaying && !this.isHitStopping) {
-            const dt = this.clock.getDelta();
-            this.update(dt);
-        } else {
-            this.clock.getDelta(); // Keep clock updating
+        try {
+            if (this.isPlaying && !this.isHitStopping) {
+                const dt = this.clock.getDelta();
+                this.update(dt);
+            } else {
+                this.clock.getDelta(); // Keep clock updating
+            }
+
+            // Camera Shake Update
+            if (this.shakeTime > 0) {
+                this.shakeTime -= 0.016;
+
+                // Normalized fade out
+                const fade = Math.min(1.0, this.shakeTime / 0.2);
+                const currentIntensity = this.shakeIntensity * fade;
+
+                const time = Date.now() * 0.001 * this.shakeFrequency;
+                // Use sin/cos for smoother high-quality oscillations
+                this.camera.position.x = this.cameraBasePos.x + Math.sin(time) * currentIntensity;
+                this.camera.position.y = this.cameraBasePos.y + Math.cos(time * 1.1) * currentIntensity;
+            } else {
+                this.camera.position.copy(this.cameraBasePos);
+            }
+
+            this.renderer.render(this.scene, this.camera);
+        } catch (error) {
+            console.error("Game Loop Error:", error);
+            this.isPlaying = false;
+            // Soft Reset
+            if (this.animationId) cancelAnimationFrame(this.animationId);
+            alert("A critical error occurred. The game has been paused/reset.\nError: " + error);
+            this.goToMainMenu();
         }
-
-        // Camera Shake Update
-        if (this.shakeTime > 0) {
-            this.shakeTime -= 0.016;
-
-            // Normalized fade out
-            const fade = Math.min(1.0, this.shakeTime / 0.2);
-            const currentIntensity = this.shakeIntensity * fade;
-
-            const time = Date.now() * 0.001 * this.shakeFrequency;
-            // Use sin/cos for smoother high-quality oscillations
-            this.camera.position.x = this.cameraBasePos.x + Math.sin(time) * currentIntensity;
-            this.camera.position.y = this.cameraBasePos.y + Math.cos(time * 1.1) * currentIntensity;
-        } else {
-            this.camera.position.copy(this.cameraBasePos);
-        }
-
-        this.renderer.render(this.scene, this.camera);
     }
 
     onWindowResize() {

@@ -78,7 +78,6 @@ export default class Player {
         this.game.scene.add(this.mesh);
 
         // Load Saved Skin
-        this.setSkin(this.game.equippedSkin);
 
 
 
@@ -92,6 +91,10 @@ export default class Player {
 
         // Controls
         window.addEventListener('keydown', (e) => this.onKeyDown(e));
+
+        // Horse Shoe
+        const shoeGeo = new THREE.TorusGeometry(0.3, 0.1, 8, 16, Math.PI); // U-shape
+        const shoeMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 1.0, roughness: 0.3 });
 
         this.horseShoe = new THREE.Mesh(shoeGeo, shoeMat);
         this.horseShoe.position.set(0, 0.3, 0.6); // Behind player
@@ -113,6 +116,9 @@ export default class Player {
         });
         this.moltenHalo = new THREE.Mesh(haloGeo, haloMat);
         this.mesh.add(this.moltenHalo);
+
+        // Load Saved Skin (Must be after effects init)
+        this.setSkin(this.game.equippedSkin);
 
         this.updateCosmetic();
     }
@@ -484,5 +490,4 @@ export default class Player {
             }
         }
     }
-}
 }
