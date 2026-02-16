@@ -14,12 +14,14 @@ export default class World {
     coinPool: THREE.Mesh[];
     floorPool: THREE.Group[]; // Keeping it if you plan to use it, though seemingly unused in snippet
     particles: THREE.Mesh[];
+    decals: THREE.Mesh[] = [];
 
     dirtTexture?: THREE.CanvasTexture;
     grassTexture?: THREE.CanvasTexture;
     crateTexture?: THREE.CanvasTexture;
     hayTexture?: THREE.CanvasTexture;
     rockTexture?: THREE.CanvasTexture;
+    burnMarkTexture?: THREE.CanvasTexture;
 
     constructor(game: Game) {
         this.game = game;
@@ -65,6 +67,10 @@ export default class World {
 
         this.floorSegments.forEach(floor => this.game.scene.remove(floor));
         this.floorSegments = [];
+
+        this.decals.forEach(d => this.game.scene.remove(d));
+        this.decals = [];
+
         this.lastSpawnZ = 0;
 
         for (let i = 0; i < 6; i++) { // Increased to 6 segments for further view distance
@@ -515,6 +521,88 @@ export default class World {
                 this.particles.splice(i, 1);
             }
         }
+
+        // Update Decals (Burn Marks)
+        for (let i = this.decals.length - 1; i >= 0; i--) {
+            const decal = this.decals[i];
+            decal.position.z += moveDistance;
+
+            if (decal.userData.life === undefined) decal.userData.life = 2.0;
+            decal.userData.life -= dt;
+
+            if (decal.userData.life <= 0) {
+                const mat = decal.material as THREE.MeshStandardMaterial;
+                mat.opacity -= dt * 2; // Fade out
+                if (mat.opacity <= 0) {
+                    this.game.scene.remove(decal);
+                    this.decals.splice(i, 1);
+                }
+            } else if (decal.position.z > 10) {
+                this.game.scene.remove(decal);
+                this.decals.splice(i, 1);
+            }
+        }
+    }
+
+    spawnBurnMark(pos: THREE.Vector3) {
+        if (!this.burnMarkTexture) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d')!;
+
+            // Black Charred Square
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, 64, 64);
+
+            // Glowing Orange Core
+            const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 25);
+            grad.addColorStop(0, '#FFFFFF'); // Hot center
+            grad.addColorStop(0.2, '#FFD700'); // Gold/Yellow
+            grad.addColorStop(0.5, '#FF4500'); // Orange
+            grad.addColorStop(1, 'rgba(0,0,0,0)'); // Transparent edges
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 64, 64);
+
+            // Cracked details
+            ctx.strokeStyle = '#221100';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 10; i++) {
+                ctx.beginPath();
+                ctx.moveTo(Math.random() * 64, Math.random() * 64);
+                ctx.lineTo(Math.random() * 64, Math.random() * 64);
+                ctx.stroke();
+            }
+
+            this.burnMarkTexture = new THREE.CanvasTexture(canvas);
+        }
+
+        const geo = new THREE.PlaneGeometry(1.5, 1.5);
+        const mat = new THREE.MeshStandardMaterial({
+            map: this.burnMarkTexture,
+            transparent: true,
+            opacity: 1,
+            depthWrite: false, // Prevent flickering
+            emissive: 0xFF4500,
+            emissiveIntensity: 0.5
+        });
+
+        const decal = new THREE.Mesh(geo, mat);
+        decal.rotation.x = -Math.PI / 2;
+        decal.position.set(pos.x, 0.01, pos.z); // Flat on ground
+
+        this.game.scene.add(decal);
+        this.decals.push(decal);
+
+        // Limit to 15 active marks
+        if (this.decals.length > 15) {
+            const oldest = this.decals.shift();
+            if (oldest) this.game.scene.remove(oldest);
+        }
+
+        // Spawn slight smoke
+        const smokePos = decal.position.clone();
+        smokePos.y = 0.2;
+        this.spawnGenericParticles(smokePos, 2, 0x333333, 0.15, 1, 0.5, false);
     }
 
     checkCollision(playerMesh: THREE.Mesh) {

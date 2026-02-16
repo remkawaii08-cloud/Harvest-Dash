@@ -20,6 +20,7 @@ export default class Player {
     // Effect Timers
     effectTimer: number = 0;
     trailTimer: number = 0;
+    burnTimer: number = 0;
     wasInAir: boolean = false;
 
     constructor(game: Game) {
@@ -382,6 +383,13 @@ export default class Player {
             if (this.effectTimer > 0.1) {
                 this.game.world.spawnGenericParticles(footPos, 2, 0xFF4500, 0.1, 0.5, 0.6, true);
                 this.effectTimer = 0;
+            }
+
+            // Scorched Earth Decals
+            this.burnTimer += dt;
+            if (this.burnTimer >= 0.1 && !this.isJumping) {
+                this.game.world.spawnBurnMark(this.mesh.position);
+                this.burnTimer = 0;
             }
         }
     }
