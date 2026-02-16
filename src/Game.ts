@@ -18,12 +18,28 @@ export default class Game {
     inventory: { magnet: number; potion: number };
     hasMagnet: boolean = false;
     potionActive: boolean = false;
-    potionCharges: number = 0;
+    potionTimer: number = 0;
     hasUnlockedJump: boolean = false;
     hasHorseshoe: boolean = false;
 
+    ownedSkins: string[] = [];
+    equippedSkin: string = 'Classic Farmer';
+
     magnetActive: boolean = false;
     magnetTimer: number = 0;
+
+    highScore: number = 0;
+
+    // Skins Data
+    skinsData = [
+        { name: 'Classic Farmer', price: 0, currency: 'gold', color: '#D2691E', desc: 'A humble start.' },
+        { name: 'Iron Knight', price: 150, currency: 'gold', color: '#708090', desc: 'Iron Body Potion lasts 3s longer.' },
+        { name: 'Neon Runner', price: 10, currency: 'jades', color: '#00FF00', desc: '+15% Base Speed.' }, // Neon Green
+        { name: 'Golden Dash', price: 500, currency: 'gold', color: '#FFD700', desc: '5x Gold Collection!' },
+        { name: 'Molten Core', price: 50, currency: 'jades', color: '#FF4500', desc: 'Supernova Dash & Bonus Jades!' }
+    ];
+
+    moltenObstacleCount: number = 0;
 
     speed: number = 10;
     speedTimer: number = 0;
@@ -48,6 +64,7 @@ export default class Game {
     pausedScreen!: HTMLElement;
     bagScreen!: HTMLElement;
     bagItemsList!: HTMLElement;
+    guideScreen!: HTMLElement;
     notificationEl!: HTMLElement | null;
     potionHudEl!: HTMLElement;
     potionChargesEl!: HTMLElement;
@@ -55,10 +72,12 @@ export default class Game {
     runGoldValEl!: HTMLElement;
     runGoldOverEl!: HTMLElement;
     walletOverEl!: HTMLElement;
+    highScoreOverEl!: HTMLElement;
     totalGoldHudEl!: HTMLElement | null;
     totalJadesHudEl!: HTMLElement | null;
     startGoldEl!: HTMLElement | null;
     startJadesEl!: HTMLElement | null;
+    startHighScoreEl!: HTMLElement | null;
     shopGoldEl!: HTMLElement;
     shopJadesEl!: HTMLElement;
     btnBuyMagnet!: HTMLButtonElement;
@@ -71,6 +90,7 @@ export default class Game {
     quickPotionBtn!: HTMLElement | null;
     previousScreen: HTMLElement | null = null;
     previousBagScreen: HTMLElement | null = null;
+    previousGuideScreen: HTMLElement | null = null;
     wasPlayingBeforeBag: boolean = false;
 
     constructor() {
@@ -78,11 +98,17 @@ export default class Game {
 
         this.totalGold = parseInt(localStorage.getItem('totalGold') || '0');
         this.totalJades = parseInt(localStorage.getItem('totalJades') || '0');
+        this.highScore = parseInt(localStorage.getItem('highScore') || '0');
 
         // Items
         this.inventory = JSON.parse(localStorage.getItem('inventory') || '{"magnet": 0, "potion": 0}');
         this.hasUnlockedJump = localStorage.getItem('hasUnlockedJump') === 'true';
         this.hasHorseshoe = localStorage.getItem('hasHorseshoe') === 'true';
+
+        // Skins
+        const defaultSkins = ['Classic Farmer'];
+        this.ownedSkins = JSON.parse(localStorage.getItem('ownedSkins') || JSON.stringify(defaultSkins));
+        this.equippedSkin = localStorage.getItem('equippedSkin') || 'Classic Farmer';
     }
 
     init() {
@@ -128,6 +154,7 @@ export default class Game {
         this.pausedScreen = document.getElementById('paused-screen')!;
         this.bagScreen = document.getElementById('bag-screen')!;
         this.bagItemsList = document.getElementById('bag-items-list')!;
+        this.guideScreen = document.getElementById('guide-screen')!;
         this.notificationEl = document.getElementById('notification');
         this.potionHudEl = document.getElementById('potion-hud')!;
         this.potionChargesEl = document.getElementById('potion-charges')!;
@@ -137,11 +164,12 @@ export default class Game {
 
         this.runGoldOverEl = document.getElementById('run-gold-over')!; // Game Over Run Gold
         this.walletOverEl = document.getElementById('wallet-over')!; // Game Over Wallet
+        this.highScoreOverEl = document.getElementById('high-score-over')!; // Game Over High Score
         this.totalGoldHudEl = document.getElementById('total-gold-hud'); // HUD Wallet
         this.totalJadesHudEl = document.getElementById('total-jades-hud'); // HUD Jades
         this.startGoldEl = document.getElementById('start-total-gold'); // Start Screen Wallet
         this.startJadesEl = document.getElementById('start-total-jades'); // Start Screen Jades
-
+        this.startHighScoreEl = document.getElementById('start-high-score'); // High Score
         this.shopGoldEl = document.getElementById('shop-gold')!;
         this.shopJadesEl = document.getElementById('shop-jades')!;
         this.btnBuyMagnet = document.getElementById('buy-magnet') as HTMLButtonElement;
@@ -194,6 +222,10 @@ export default class Game {
         document.getElementById('bag-btn')!.addEventListener('click', () => this.openBag());
         document.getElementById('bag-close')!.addEventListener('click', () => this.closeBag());
 
+        document.getElementById('guide-btn-start')!.addEventListener('click', () => this.openGuide());
+        document.getElementById('guide-btn-pause')!.addEventListener('click', () => this.openGuide());
+        document.getElementById('guide-close')!.addEventListener('click', () => this.closeGuide());
+
         this.btnBuyMagnet.addEventListener('click', () => {
             if (this.totalGold >= 1) {
                 this.totalGold -= 1;
@@ -227,23 +259,23 @@ export default class Game {
 
         // Shop Tab Switching
         const tabStore = document.getElementById('tab-store')!;
+        const tabSkins = document.getElementById('tab-skins')!;
         const tabMint = document.getElementById('tab-mint')!;
         const contentStore = document.getElementById('store-content')!;
+        const contentSkins = document.getElementById('skins-content')!;
         const contentMint = document.getElementById('mint-content')!;
 
-        tabStore.addEventListener('click', () => {
-            tabStore.classList.add('active');
-            tabMint.classList.remove('active');
-            contentStore.classList.add('active');
-            contentMint.classList.remove('active');
-        });
+        const switchTab = (tab: HTMLElement, content: HTMLElement) => {
+            [tabStore, tabSkins, tabMint].forEach(t => t.classList.remove('active'));
+            [contentStore, contentSkins, contentMint].forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            content.classList.add('active');
+            if (tab === tabSkins) this.renderSkinsShop();
+        };
 
-        tabMint.addEventListener('click', () => {
-            tabMint.classList.add('active');
-            tabStore.classList.remove('active');
-            contentMint.classList.add('active');
-            contentStore.classList.remove('active');
-        });
+        tabStore.addEventListener('click', () => switchTab(tabStore, contentStore));
+        tabSkins.addEventListener('click', () => switchTab(tabSkins, contentSkins));
+        tabMint.addEventListener('click', () => switchTab(tabMint, contentMint));
 
         // Developer Tools: Reset All
         document.getElementById('reset-all-btn')!.addEventListener('click', () => {
@@ -306,11 +338,15 @@ export default class Game {
         if (this.startJadesEl) {
             this.startJadesEl.innerText = this.totalJades.toString();
         }
+        if (this.startHighScoreEl) {
+            this.startHighScoreEl.innerText = this.highScore.toString();
+        }
     }
 
     isUIOpen() {
         return this.shopScreen.classList.contains('active') ||
             this.bagScreen.classList.contains('active') ||
+            this.guideScreen.classList.contains('active') ||
             this.pausedScreen.classList.contains('active') ||
             this.startScreen.classList.contains('active') ||
             this.gameOverScreen.classList.contains('active');
@@ -353,10 +389,17 @@ export default class Game {
 
     activatePotion() {
         this.potionActive = true;
-        this.potionCharges = 10;
+
+        let duration = 10; // Base duration seconds
+        if (this.equippedSkin === 'Iron Knight') {
+            duration += 3; // Exactly +3s
+            this.showNotification('IRON KNIGHT BONUS: +3s Potion!');
+        }
+
+        this.potionTimer = duration;
         this.player.setMetallicSkin(true);
         this.potionHudEl.style.display = 'block';
-        this.potionChargesEl.innerText = this.potionCharges.toString();
+        this.potionChargesEl.innerText = Math.ceil(this.potionTimer).toString();
         this.showNotification('IRON BODY ACTIVATED!');
     }
 
@@ -398,9 +441,12 @@ export default class Game {
     saveData() {
         localStorage.setItem('totalGold', this.totalGold.toString());
         localStorage.setItem('totalJades', this.totalJades.toString());
+        localStorage.setItem('highScore', this.highScore.toString());
         localStorage.setItem('inventory', JSON.stringify(this.inventory));
         localStorage.setItem('hasUnlockedJump', this.hasUnlockedJump.toString());
         localStorage.setItem('hasHorseshoe', this.hasHorseshoe.toString());
+        localStorage.setItem('ownedSkins', JSON.stringify(this.ownedSkins));
+        localStorage.setItem('equippedSkin', this.equippedSkin);
     }
 
     goToMainMenu() {
@@ -564,6 +610,96 @@ export default class Game {
         }
     }
 
+    renderSkinsShop() {
+        const list = document.getElementById('skins-list')!;
+        list.innerHTML = '';
+
+        this.skinsData.forEach(skin => {
+            const btn = document.createElement('button');
+            btn.className = 'item-btn';
+            if (skin.name === 'Molten Core') btn.classList.add('molten-border');
+
+            // Preview Circle
+            const preview = document.createElement('div');
+            preview.style.width = '40px';
+            preview.style.height = '40px';
+            preview.style.borderRadius = '50%';
+            preview.style.backgroundColor = skin.color;
+            preview.style.marginBottom = '5px';
+            preview.style.border = '2px solid #fff';
+
+            const nameDiv = document.createElement('div');
+            nameDiv.innerText = skin.name;
+
+            const priceDiv = document.createElement('div');
+            priceDiv.className = 'price';
+
+            // Status Logic
+            const isOwned = this.ownedSkins.includes(skin.name);
+            const isEquipped = this.equippedSkin === skin.name;
+
+            if (isEquipped) {
+                btn.classList.add('owned');
+                priceDiv.innerText = 'EQUIPPED';
+                btn.disabled = true;
+            } else if (isOwned) {
+                priceDiv.innerText = 'OWNED';
+                btn.onclick = () => this.equipSkin(skin.name);
+            } else {
+                if (skin.currency === 'gold') {
+                    priceDiv.innerHTML = `${skin.price} G`;
+                    if (this.totalGold < skin.price) btn.disabled = true;
+                } else {
+                    priceDiv.innerHTML = `<span style="color:#4CAF50">${skin.price} J</span>`;
+                    if (this.totalJades < skin.price) btn.disabled = true;
+                }
+
+                btn.onclick = () => this.buySkin(skin);
+            }
+
+            const descDiv = document.createElement('div');
+            descDiv.style.fontSize = '0.7rem';
+            descDiv.style.opacity = '0.7';
+            descDiv.innerText = skin.desc || '';
+
+            btn.appendChild(preview);
+            btn.appendChild(nameDiv);
+            btn.appendChild(descDiv);
+            btn.appendChild(priceDiv);
+            list.appendChild(btn);
+        });
+    }
+
+    buySkin(skin: any) {
+        if (skin.currency === 'gold') {
+            if (this.totalGold >= skin.price) {
+                this.totalGold -= skin.price;
+                this.completeSkinPurchase(skin.name);
+            }
+        } else {
+            if (this.totalJades >= skin.price) {
+                this.totalJades -= skin.price;
+                this.completeSkinPurchase(skin.name);
+            }
+        }
+    }
+
+    completeSkinPurchase(skinName: string) {
+        this.ownedSkins.push(skinName);
+        this.showNotification('SKIN UNLOCKED!');
+        this.saveData();
+        this.updateShopUI(); // Updates top bar
+        this.renderSkinsShop(); // Re-renders buttons
+    }
+
+    equipSkin(skinName: string) {
+        this.equippedSkin = skinName;
+        this.saveData();
+        this.player.setSkin(skinName);
+        this.renderSkinsShop();
+        this.showNotification('EQUIPPED!');
+    }
+
     openBag() {
         if (this.bagScreen.classList.contains('active')) return;
 
@@ -690,6 +826,13 @@ export default class Game {
         this.runCoins = 0;
 
         this.speed = 10;
+
+        // Neon Runner Ability: +15% Speed
+        if (this.equippedSkin === 'Neon Runner') {
+            this.speed *= 1.15;
+            // this.showNotification('SPEED BOOST ACTIVE!'); // Optional
+        }
+
         this.speedTimer = 0;
         this.clock.start();
 
@@ -702,7 +845,7 @@ export default class Game {
         this.magnetTimerEl.style.display = 'none';
 
         this.potionActive = false;
-        this.potionCharges = 0;
+        this.potionTimer = 0;
         this.player.setMetallicSkin(false);
         this.potionHudEl.style.display = 'none';
 
@@ -736,10 +879,52 @@ export default class Game {
         }
     }
 
+    openGuide() {
+        this.isPlaying = false;
+
+        // Determine which screen we are coming from
+        if (this.pausedScreen.style.display !== 'none' && this.pausedScreen.classList.contains('active')) {
+            this.previousGuideScreen = this.pausedScreen;
+        } else if (this.startScreen.style.display !== 'none' && this.startScreen.classList.contains('active')) {
+            this.previousGuideScreen = this.startScreen;
+        } else {
+            this.previousGuideScreen = null;
+        }
+
+        if (this.previousGuideScreen) {
+            this.previousGuideScreen.classList.remove('active');
+            setTimeout(() => this.previousGuideScreen!.style.display = 'none', 300);
+        }
+
+        this.guideScreen.style.display = 'block';
+        setTimeout(() => this.guideScreen.classList.add('active'), 10);
+    }
+
+    closeGuide() {
+        this.guideScreen.classList.remove('active');
+        setTimeout(() => {
+            this.guideScreen.style.display = 'none';
+
+            if (this.previousGuideScreen) {
+                this.previousGuideScreen.style.display = 'block';
+                setTimeout(() => this.previousGuideScreen!.classList.add('active'), 10);
+                this.isPlaying = false;
+            } else {
+                // Return to HUD / Resume state if for some reason we came from nowhere
+                this.isPlaying = true;
+            }
+        }, 300);
+    }
+
     gameOver() {
         this.isPlaying = false;
         this.gameIsOver = true;
-        this.isHitStopping = false; // Reset hitstop
+        this.clock.stop();
+
+        if (this.runCoins > this.highScore) {
+            this.highScore = this.runCoins;
+            this.showNotification('NEW HIGH SCORE!');
+        }
 
         // Add Run Coins to Total
         this.totalGold += this.runCoins;
@@ -748,11 +933,11 @@ export default class Game {
 
         this.runGoldOverEl.innerText = this.runCoins.toString();
         this.walletOverEl.innerText = this.totalGold.toString();
-
-        this.hud.classList.add('hidden');
+        this.highScoreOverEl.innerText = this.highScore.toString();
 
         this.gameOverScreen.style.display = 'block';
         setTimeout(() => this.gameOverScreen.classList.add('active'), 10);
+        this.hud.classList.add('hidden');
     }
 
     update(dt) {
@@ -775,6 +960,20 @@ export default class Game {
                 this.magnetTimerEl.style.display = 'none';
             } else {
                 this.magnetTimeLeftEl.innerText = Math.ceil(this.magnetTimer).toString();
+            }
+        }
+
+        // Potion Timer Logic
+        if (this.potionActive) {
+            this.potionTimer -= dt;
+            if (this.potionTimer <= 0) {
+                this.potionActive = false;
+                this.potionTimer = 0;
+                this.player.setMetallicSkin(false);
+                this.potionHudEl.style.display = 'none';
+                this.showNotification('IRON BODY ENDED');
+            } else {
+                this.potionChargesEl.innerText = Math.ceil(this.potionTimer).toString();
             }
         }
 
@@ -843,7 +1042,17 @@ export default class Game {
 
         // Coin Check
         const magnetRadius = this.magnetActive ? 4.0 : 0; // Much larger radius
-        const coinsCollected = this.world.checkCoinCollision(this.player.mesh, magnetRadius);
+        let coinsCollected = this.world.checkCoinCollision(this.player.mesh, magnetRadius);
+
+        // Golden Dash Ability: 5x Gold
+        if (this.equippedSkin === 'Golden Dash' && coinsCollected > 0) {
+            coinsCollected *= 5;
+        }
+
+        // NFT Horse Shoe: +25% Gold
+        if (this.hasHorseshoe && coinsCollected > 0) {
+            coinsCollected = Math.round(coinsCollected * 1.25);
+        }
 
         if (coinsCollected > 0) {
             this.runCoins += coinsCollected;
@@ -857,48 +1066,51 @@ export default class Game {
         }
 
         // Collision Check
-        if (this.world.checkCollision(this.player.mesh)) {
-            // Check exactly what we hit to play effect
-            // We can do this better by returning the object hit
-            const obs = this.world.checkCollisionDetailed(this.player.mesh);
-            if (obs) {
-                if (this.potionActive && this.potionCharges > 0) {
-                    // Iron Body Effect
-                    this.potionCharges--;
-                    this.potionChargesEl.innerText = this.potionCharges.toString();
-                    this.showNotification('BLOCKED! (' + this.potionCharges + ')');
+        let collisionRadiusExp = 0;
+        if (this.equippedSkin === 'Molten Core' && this.potionActive) {
+            collisionRadiusExp = 1.0; // Supernova Dash: Larger destruction radius
+        }
 
-                    // Shake Camera
-                    this.shakeIntensity = 0.5;
-                    this.shakeTime = 0.5;
+        const obs = this.world.checkCollisionDetailed(this.player.mesh, collisionRadiusExp);
+        if (obs) {
+            if (this.potionActive) { // Potion is active, absorb hit
+                this.showNotification('SUPERNOVA!');
 
-                    // Play break effect
-                    this.world.breakObstacle(obs);
+                // Shake Camera
+                this.shakeIntensity = 0.5;
+                this.shakeTime = 0.5;
 
-                    // Jade Drop Logic (All Obstacles)
-                    this.checkJadeDrop(obs.position);
+                // Play break effect
+                this.world.breakObstacle(obs);
 
-                    if (this.potionCharges <= 0) {
-                        this.potionActive = false;
-                        this.player.setMetallicSkin(false);
-                        this.potionHudEl.style.display = 'none';
-                        this.showNotification('IRON BODY ENDED');
+                // Jade Drop Logic (All Obstacles)
+                this.checkJadeDrop(obs.position);
+
+                // Molten Core Bonus
+                if (this.equippedSkin === 'Molten Core') {
+                    this.moltenObstacleCount++;
+                    if (this.moltenObstacleCount >= 10) {
+                        this.totalJades += 5;
+                        this.saveData();
+                        this.showNotification('+5 JADE BONUS (MOLTEN)');
+                        this.moltenObstacleCount = 0;
+                        if (this.totalJadesHudEl) this.totalJadesHudEl.innerText = this.totalJades.toString();
+                        this.showFloatingText('BONUS JADES!', this.player.mesh.position, '#FFD700');
                     }
-                } else {
-                    // Game Over
-                    this.gameOver();
                 }
+            } else {
+                // Game Over
+                this.gameOver();
             }
         }
     }
 
     checkJadeDrop(pos: THREE.Vector3) {
-        // 60% Chance to drop Jade from ANY obstacle
-        if (Math.random() < 0.60) {
+        if (Math.random() < 0.65) { // 65% Jade Drop Chance
             this.totalJades++;
             this.saveData();
+            this.showFloatingText('+1 JADE', pos, '#4CAF50');
             if (this.totalJadesHudEl) this.totalJadesHudEl.innerText = this.totalJades.toString();
-            this.showFloatingText('+1 Jade', pos, '#00ff00');
         }
     }
 

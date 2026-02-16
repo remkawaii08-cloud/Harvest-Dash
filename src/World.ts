@@ -531,9 +531,9 @@ export default class World {
         return false;
     }
 
-    checkCollisionDetailed(playerMesh: THREE.Mesh) {
+    checkCollisionDetailed(playerMesh: THREE.Mesh, expansion: number = 0) {
         const playerBox = new THREE.Box3().setFromObject(playerMesh);
-        playerBox.expandByScalar(-0.2);
+        playerBox.expandByScalar(-0.2 + expansion); // Subtract base contraction and add expansion
 
         for (let i = this.obstacles.length - 1; i >= 0; i--) {
             const obs = this.obstacles[i];
@@ -562,31 +562,36 @@ export default class World {
     }
 
     spawnShatterParticles(pos: THREE.Vector3, type: string) {
-        const count = 10; // Slightly more particles for better feel
-        let color = 0x8B4513; // Default Crate/Box (Wood)
+        const isBig = this.game.potionActive;
+        const count = isBig ? 20 : 10;
+        const size = isBig ? 0.4 : 0.2;
+        const speed = isBig ? 12 : 8;
 
-        if (type === 'rock' || type === 'stone') {
-            color = 0x888888; // Grey Stone
-        } else if (type === 'hay') {
-            color = 0xFFD700; // Yellow/Golden Hay
-        } else if (type === 'box' || type === 'crate') {
-            color = 0x8B4513; // Brown Wood
-        }
+        let color = 0x8B4513;
+        if (type === 'rock' || type === 'stone') color = 0x808080;
+        else if (type === 'hay') color = 0xFFD700;
 
-        const particleGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+        this.spawnGenericParticles(pos, count, color, size, speed, 1.2, false);
+    }
 
+    spawnGenericParticles(pos: THREE.Vector3, count: number, color: number | string, size: number = 0.2, speed: number = 5, life: number = 1.0, isGlow: boolean = false) {
+        const particleGeo = new THREE.BoxGeometry(size, size, size);
         for (let i = 0; i < count; i++) {
-            const mat = new THREE.MeshStandardMaterial({ color: color, transparent: true });
+            const mat = new THREE.MeshStandardMaterial({
+                color: color,
+                transparent: true,
+                emissive: isGlow ? color : 0x000000,
+                emissiveIntensity: isGlow ? 1.0 : 0
+            });
             const p = new THREE.Mesh(particleGeo, mat);
             p.position.copy(pos);
-
             p.userData.velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 10,
-                Math.random() * 5 + 2,
-                (Math.random() - 0.5) * 10
+                (Math.random() - 0.5) * speed,
+                (Math.random() * speed * 0.5) + (speed * 0.2),
+                (Math.random() - 0.5) * speed
             );
-            p.userData.life = 1.0;
-
+            p.userData.life = life;
+            p.userData.maxLife = life;
             this.game.scene.add(p);
             this.particles.push(p);
         }

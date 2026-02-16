@@ -17,6 +17,11 @@ export default class Player {
     magnetRing!: THREE.Mesh;
     horseShoe!: THREE.Mesh;
 
+    // Effect Timers
+    effectTimer: number = 0;
+    trailTimer: number = 0;
+    wasInAir: boolean = false;
+
     constructor(game: Game) {
         this.game = game;
         this.lane = 0; // -1, 0, 1
@@ -63,6 +68,9 @@ export default class Player {
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.position.y = this.yPos;
         this.game.scene.add(this.mesh);
+
+        // Load Saved Skin
+        this.setSkin(this.game.equippedSkin);
 
 
 
@@ -149,13 +157,20 @@ export default class Player {
         if (this.isJumping) {
             this.mesh.position.y += this.velocity * dt;
             this.velocity += this.gravity * dt;
+            this.wasInAir = true;
 
             if (this.mesh.position.y <= 0.5) {
                 this.mesh.position.y = 0.5;
                 this.isJumping = false;
                 this.velocity = 0;
+                this.handleLanding();
             }
+        } else {
+            this.wasInAir = false;
         }
+
+        // Spawn Continuous Effects
+        this.spawnContinuousEffects(dt);
 
         // Magnet Ring Position & Blinking
         if (this.magnetRing.visible) {
@@ -211,6 +226,163 @@ export default class Player {
     updateCosmetic() {
         if (this.horseShoe) {
             this.horseShoe.visible = this.game.hasHorseshoe;
+        }
+    }
+
+    setSkin(skinName: string) {
+        if (!this.mesh) return;
+
+        const mat = this.mesh.material as THREE.MeshStandardMaterial;
+
+        // Reset behaviors
+        mat.emissiveIntensity = 0;
+        mat.emissive.setHex(0x000000);
+
+        switch (skinName) {
+            case 'Classic Farmer':
+                mat.color.set('#D2691E');
+                mat.metalness = 0.0;
+                mat.roughness = 0.8;
+                break;
+            case 'Iron Knight':
+                mat.color.set('#C0C0C0'); // Metallic Silver/Gray
+                mat.metalness = 1.0;
+                mat.roughness = 0.2;
+                break;
+            case 'Neon Runner':
+                mat.color.set('#00FFFF'); // Cyan Base
+                mat.emissive.set('#00FFFF'); // Glow
+                mat.emissiveIntensity = 0.5;
+                mat.metalness = 0.5;
+                mat.roughness = 0.5;
+                break;
+            case 'Golden Dash':
+                mat.color.set('#FFD700'); // Bright Gold
+                mat.metalness = 1.0;
+                mat.roughness = 0.1;
+                break;
+            case 'Molten Core':
+                // Procedural Molten Texture
+                const canvas = document.createElement('canvas');
+                canvas.width = 128; canvas.height = 128;
+                const ctx = canvas.getContext('2d')!;
+
+                // Base: Deep Volcanic Red
+                ctx.fillStyle = '#4B0000';
+                ctx.fillRect(0, 0, 128, 128);
+
+                // Molten Cracks
+                for (let i = 0; i < 40; i++) {
+                    ctx.strokeStyle = Math.random() > 0.5 ? '#FF4500' : '#FF8C00';
+                    ctx.lineWidth = Math.random() * 5 + 2;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.random() * 128, Math.random() * 128);
+                    ctx.lineTo(Math.random() * 128, Math.random() * 128);
+                    ctx.stroke();
+                }
+
+                // Core: Bright Center
+                const grad = ctx.createRadialGradient(64, 64, 5, 64, 64, 50);
+                grad.addColorStop(0, '#FFFFFF'); // White core
+                grad.addColorStop(0.2, '#FFFF00'); // Yellow
+                grad.addColorStop(1, 'rgba(255, 69, 0, 0)'); // Fading Red
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 128, 128);
+
+                const tex = new THREE.CanvasTexture(canvas);
+                mat.map = tex;
+                mat.color.set('#FFFFFF'); // Use texture colors
+                mat.emissive.set('#FF4500');
+                mat.emissiveIntensity = 1.0;
+                mat.metalness = 0.5;
+                mat.roughness = 0.4;
+                break;
+            default:
+                mat.color.set('#D2691E');
+        }
+    }
+
+    handleLanding() {
+        if (this.game.equippedSkin === 'Iron Knight') {
+            // Metal sparks on land
+            const landPos = this.mesh.position.clone();
+            landPos.y = 0.1;
+            this.game.world.spawnGenericParticles(landPos, 8, 0xFFFF00, 0.1, 4, 0.5, true);
+            // Simulate 'Clink' visually since we have no audio
+        }
+    }
+
+    spawnContinuousEffects(dt: number) {
+        this.effectTimer += dt;
+        this.trailTimer += dt;
+
+        const skin = this.game.equippedSkin;
+        const pos = this.mesh.position.clone();
+
+        // Foot position (for dust/sparks)
+        const footPos = pos.clone();
+        footPos.y = 0.1;
+        footPos.z += 0.5;
+
+        if (skin === 'Classic Farmer') {
+            if (this.trailTimer > 0.1 && !this.isJumping) {
+                this.game.world.spawnGenericParticles(footPos, 1, 0xd2b48c, 0.1, 1, 0.5, false); // Dust puff
+                this.trailTimer = 0;
+            }
+        } else if (skin === 'Neon Runner') {
+            // Pulse/Flicker
+            const mat = this.mesh.material as THREE.MeshStandardMaterial;
+            mat.emissiveIntensity = 0.5 + Math.sin(Date.now() * 0.01) * 0.3;
+
+            // Electric Sparks
+            if (this.effectTimer > 0.05) {
+                const sparkPos = pos.clone().add(new THREE.Vector3(
+                    (Math.random() - 0.5) * 1.2,
+                    (Math.random() - 0.5) * 1.2,
+                    (Math.random() - 0.5) * 1.2
+                ));
+                this.game.world.spawnGenericParticles(sparkPos, 1, 0x00FFFF, 0.05, 0.5, 0.3, true);
+                this.effectTimer = 0;
+            }
+
+            // Motion Trail Particles
+            if (this.trailTimer > 0.02) {
+                this.game.world.spawnGenericParticles(pos, 2, 0x00FFFF, 0.15, 0.1, 0.4, true);
+                this.trailTimer = 0;
+            }
+        } else if (skin === 'Golden Dash') {
+            // Constant Star Sparkles
+            if (this.effectTimer > 0.1) {
+                const starPos = pos.clone().add(new THREE.Vector3(
+                    (Math.random() - 0.5) * 1.5,
+                    (Math.random() - 0.5) * 1.5,
+                    (Math.random() - 0.5) * 1.5
+                ));
+                this.game.world.spawnGenericParticles(starPos, 1, 0xFFFF00, 0.1, 1, 0.8, true);
+                this.effectTimer = 0;
+            }
+        } else if (skin === 'Molten Core') {
+            // Core Pulsing
+            const mat = this.mesh.material as THREE.MeshStandardMaterial;
+            mat.emissiveIntensity = 1.5 + Math.sin(Date.now() * 0.005) * 0.5;
+
+            // Heat Waves (Distorted air effect using thin, fast-dying particles)
+            if (this.trailTimer > 0.05) {
+                const heatPos = pos.clone().add(new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 0.5,
+                    (Math.random() - 0.5) * 2
+                ));
+                // Transparent, fast-rising orange particles
+                this.game.world.spawnGenericParticles(heatPos, 1, 0xFF8C00, 0.3, 2, 0.4, true);
+                this.trailTimer = 0;
+            }
+
+            // Ground Melting (Small embers)
+            if (this.effectTimer > 0.1) {
+                this.game.world.spawnGenericParticles(footPos, 2, 0xFF4500, 0.1, 0.5, 0.6, true);
+                this.effectTimer = 0;
+            }
         }
     }
 }
