@@ -165,6 +165,25 @@ button:hover {
   display: none;
 }
 
+#distance-hud {
+  position: absolute;
+  top: calc(20px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'VT323', monospace;
+  font-size: 2.5rem;
+  color: #fff;
+  text-shadow: 2px 2px 0 #000;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 5px 20px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  min-width: 120px;
+  text-align: center;
+}
+
 /* Touch Zones for Movement */
 .touch-zone {
   position: absolute;

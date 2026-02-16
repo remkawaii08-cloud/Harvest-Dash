@@ -140,12 +140,8 @@ export default class Player {
     jump() {
         if (!this.game.isPlaying) return;
         if (!this.isJumping) {
-            if (this.game.hasUnlockedJump) {
-                this.velocity = 10;
-                this.isJumping = true;
-            } else {
-                this.game.showNotification('JUMP LOCKED');
-            }
+            this.velocity = 12.0;
+            this.isJumping = true;
         }
     }
 

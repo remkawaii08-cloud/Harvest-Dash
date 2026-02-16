@@ -12,14 +12,16 @@ export default class Game {
     clock: THREE.Clock = new THREE.Clock();
     isPlaying: boolean = false;
     runCoins: number = 0;
+    runDistance: number = 0;
     totalGold: number = 0;
     totalJades: number = 0;
+    totalDistance: number = 0;
 
     inventory: { magnet: number; potion: number };
     hasMagnet: boolean = false;
     potionActive: boolean = false;
     potionTimer: number = 0;
-    hasUnlockedJump: boolean = false;
+    hasUnlockedJump: boolean = true;
     hasHorseshoe: boolean = false;
 
     ownedSkins: string[] = [];
@@ -82,27 +84,38 @@ export default class Game {
     shopJadesEl!: HTMLElement;
     btnBuyMagnet!: HTMLButtonElement;
     btnBuyPotion!: HTMLButtonElement;
-    btnBuyJump!: HTMLButtonElement;
+
     magnetTimerEl!: HTMLElement;
     magnetTimeLeftEl!: HTMLElement;
     jumpBtnMobile!: HTMLElement | null;
     quickMagnetBtn!: HTMLElement | null;
     quickPotionBtn!: HTMLElement | null;
+    distanceHudEl!: HTMLElement;
+    distanceOverEl!: HTMLElement;
+    startTotalDistEl!: HTMLElement;
     previousScreen: HTMLElement | null = null;
     previousBagScreen: HTMLElement | null = null;
     previousGuideScreen: HTMLElement | null = null;
     wasPlayingBeforeBag: boolean = false;
+
+    // Revive System
+    reviveCount: number = 0;
+    reviveTimer: number = 0;
+    reviveInterval: any = null;
+    reviveBtn!: HTMLButtonElement;
+    reviveCountdownEl!: HTMLElement;
 
     constructor() {
         console.log('%cTesting Mode Active: Press G for Gold, L for Items/Jump, Reset Button in Shop', 'color: #00ffff; font-weight: bold; font-size: 1.2rem;');
 
         this.totalGold = parseInt(localStorage.getItem('totalGold') || '0');
         this.totalJades = parseInt(localStorage.getItem('totalJades') || '0');
+        this.totalDistance = parseInt(localStorage.getItem('totalDistance') || '0');
         this.highScore = parseInt(localStorage.getItem('highScore') || '0');
 
         // Items
         this.inventory = JSON.parse(localStorage.getItem('inventory') || '{"magnet": 0, "potion": 0}');
-        this.hasUnlockedJump = localStorage.getItem('hasUnlockedJump') === 'true';
+        this.hasUnlockedJump = true; // Always unlocked now
         this.hasHorseshoe = localStorage.getItem('hasHorseshoe') === 'true';
 
         // Skins
@@ -170,14 +183,19 @@ export default class Game {
         this.startGoldEl = document.getElementById('start-total-gold'); // Start Screen Wallet
         this.startJadesEl = document.getElementById('start-total-jades'); // Start Screen Jades
         this.startHighScoreEl = document.getElementById('start-high-score'); // High Score
+        this.startTotalDistEl = document.getElementById('start-total-dist')!;
         this.shopGoldEl = document.getElementById('shop-gold')!;
         this.shopJadesEl = document.getElementById('shop-jades')!;
         this.btnBuyMagnet = document.getElementById('buy-magnet') as HTMLButtonElement;
         this.btnBuyPotion = document.getElementById('buy-potion') as HTMLButtonElement;
-        this.btnBuyJump = document.getElementById('buy-jump') as HTMLButtonElement;
 
         this.magnetTimerEl = document.getElementById('magnet-timer')!;
         this.magnetTimeLeftEl = document.getElementById('magnet-time-left')!;
+
+        // Revive UI
+        this.reviveBtn = document.getElementById('revive-btn') as HTMLButtonElement;
+        this.reviveCountdownEl = document.getElementById('revive-countdown')!;
+        this.reviveBtn.addEventListener('click', () => this.revive());
 
         document.getElementById('start-btn')!.addEventListener('click', () => this.start());
         document.getElementById('restart-btn')!.addEventListener('click', () => this.start());
@@ -190,6 +208,8 @@ export default class Game {
         this.jumpBtnMobile = document.getElementById('jump-btn-mobile');
         this.quickMagnetBtn = document.getElementById('quick-magnet');
         this.quickPotionBtn = document.getElementById('quick-potion');
+        this.distanceHudEl = document.getElementById('distance-hud')!;
+        this.distanceOverEl = document.getElementById('run-distance-over')!;
 
         document.getElementById('touch-move-left')!.addEventListener('pointerdown', (e) => {
             this.player.moveLeft();
@@ -216,7 +236,7 @@ export default class Game {
         document.getElementById('shop-btn-start')!.addEventListener('click', () => this.openShop());
         document.getElementById('shop-btn-over')!.addEventListener('click', () => this.openShop());
         document.getElementById('shop-btn-pause')!.addEventListener('click', () => this.openShop());
-        document.getElementById('skills-btn-start')!.addEventListener('click', () => this.openShop()); // Redirect to shop
+
         document.getElementById('shop-back')!.addEventListener('click', () => this.closeShop());
 
         document.getElementById('bag-btn')!.addEventListener('click', () => this.openBag());
@@ -227,8 +247,8 @@ export default class Game {
         document.getElementById('guide-close')!.addEventListener('click', () => this.closeGuide());
 
         this.btnBuyMagnet.addEventListener('click', () => {
-            if (this.totalGold >= 1) {
-                this.totalGold -= 1;
+            if (this.totalGold >= 30) {
+                this.totalGold -= 30;
                 this.inventory.magnet = (this.inventory.magnet || 0) + 1;
                 this.saveData();
                 this.updateShopUI();
@@ -236,21 +256,11 @@ export default class Game {
         });
 
         this.btnBuyPotion.addEventListener('click', () => {
-            if (this.totalGold >= 1) {
-                this.totalGold -= 1;
+            if (this.totalGold >= 100) {
+                this.totalGold -= 100;
                 this.inventory.potion = (this.inventory.potion || 0) + 1;
                 this.saveData();
                 this.updateShopUI();
-            }
-        });
-
-        this.btnBuyJump.addEventListener('click', () => {
-            if (this.totalGold >= 10 && !this.hasUnlockedJump) {
-                this.totalGold -= 10;
-                this.hasUnlockedJump = true;
-                this.saveData();
-                this.updateShopUI();
-                this.showNotification('SKILL UNLOCKED: You can now Jump using Spacebar!');
             }
         });
 
@@ -287,7 +297,6 @@ export default class Game {
 
         // Keyboard Shortcut for Pause, Items & Cheats
         window.addEventListener('keydown', (e) => {
-
             if (e.code === 'Digit1') {
                 this.useItem('magnet');
             }
@@ -305,7 +314,6 @@ export default class Game {
                 this.showNotification('+500 GOLD (CHEAT)');
             }
             if (e.code === 'KeyL') {
-                this.hasUnlockedJump = true;
                 this.totalJades += 200;
                 this.inventory.potion = (this.inventory.potion || 0) + 5;
                 this.inventory.magnet = (this.inventory.magnet || 0) + 5;
@@ -340,6 +348,9 @@ export default class Game {
         }
         if (this.startHighScoreEl) {
             this.startHighScoreEl.innerText = this.highScore.toString();
+        }
+        if (this.startTotalDistEl) {
+            this.startTotalDistEl.innerText = this.totalDistance.toString();
         }
     }
 
@@ -387,11 +398,11 @@ export default class Game {
         this.updateMobileControlsVisibility();
     }
 
-    activatePotion() {
+    activatePotion(customDuration?: number) {
         this.potionActive = true;
 
-        let duration = 10; // Base duration seconds
-        if (this.equippedSkin === 'Iron Knight') {
+        let duration = customDuration !== undefined ? customDuration : 10; // Base duration seconds
+        if (customDuration === undefined && this.equippedSkin === 'Iron Knight') {
             duration += 3; // Exactly +3s
             this.showNotification('IRON KNIGHT BONUS: +3s Potion!');
         }
@@ -441,9 +452,9 @@ export default class Game {
     saveData() {
         localStorage.setItem('totalGold', this.totalGold.toString());
         localStorage.setItem('totalJades', this.totalJades.toString());
+        localStorage.setItem('totalDistance', this.totalDistance.toString());
         localStorage.setItem('highScore', this.highScore.toString());
         localStorage.setItem('inventory', JSON.stringify(this.inventory));
-        localStorage.setItem('hasUnlockedJump', this.hasUnlockedJump.toString());
         localStorage.setItem('hasHorseshoe', this.hasHorseshoe.toString());
         localStorage.setItem('ownedSkins', JSON.stringify(this.ownedSkins));
         localStorage.setItem('equippedSkin', this.equippedSkin);
@@ -531,24 +542,14 @@ export default class Game {
 
         // Magnet State
         this.btnBuyMagnet.classList.remove('owned');
-        this.btnBuyMagnet.innerHTML = "<div>Magnet (30s)</div><div class='price'>1 G</div>";
-        this.btnBuyMagnet.disabled = this.totalGold < 1;
+        this.btnBuyMagnet.innerHTML = "<div>Magnet</div><div style='font-size: 0.8rem; opacity: 0.9;'>Pulls all nearby Gold</div><div class='price'>30 G</div>";
+        this.btnBuyMagnet.disabled = this.totalGold < 30;
 
         // Potion State
         this.btnBuyPotion.classList.remove('owned');
-        this.btnBuyPotion.innerHTML = "<div>Iron Potion</div><div class='price'>1 G</div>";
-        this.btnBuyPotion.disabled = this.totalGold < 1;
+        this.btnBuyPotion.innerHTML = "<div>Iron Potion</div><div style='font-size: 0.8rem; opacity: 0.9;'>Smash through obstacles!</div><div class='price'>100 G</div>";
+        this.btnBuyPotion.disabled = this.totalGold < 100;
 
-        // Jump State
-        if (this.hasUnlockedJump) {
-            this.btnBuyJump.classList.add('owned');
-            this.btnBuyJump.innerHTML = "<div>Jump Skill</div><div class='price'>OWNED</div>";
-            this.btnBuyJump.disabled = true;
-        } else {
-            this.btnBuyJump.classList.remove('owned');
-            this.btnBuyJump.innerHTML = "<div>Jump Skill</div><div class='price'>10 G</div>";
-            this.btnBuyJump.disabled = this.totalGold < 10;
-        }
 
         // NFT Section
         const mintBtn = document.getElementById('mint-horseshoe') as HTMLButtonElement;
@@ -566,7 +567,7 @@ export default class Game {
 
     updateMobileControlsVisibility() {
         if (this.jumpBtnMobile) {
-            this.jumpBtnMobile.style.display = (this.hasUnlockedJump && this.isPlaying) ? 'flex' : 'none';
+            this.jumpBtnMobile.style.display = this.isPlaying ? 'flex' : 'none';
         }
 
         // Update Quick Use Buttons
@@ -824,6 +825,16 @@ export default class Game {
         this.isPlaying = true;
         this.gameIsOver = false;
         this.runCoins = 0;
+        this.runDistance = 0;
+        this.reviveCount = 0;
+        if (this.reviveInterval) {
+            clearInterval(this.reviveInterval);
+            this.reviveInterval = null;
+        }
+        document.getElementById('revive-container')!.style.display = 'none';
+
+        this.distanceHudEl.innerText = '0000m';
+        this.runGoldValEl.innerText = '0';
 
         this.speed = 10;
 
@@ -921,23 +932,108 @@ export default class Game {
         this.gameIsOver = true;
         this.clock.stop();
 
-        if (this.runCoins > this.highScore) {
-            this.highScore = this.runCoins;
-            this.showNotification('NEW HIGH SCORE!');
+        // Round distance
+        const finalDist = Math.floor(this.runDistance);
+
+        if (finalDist > this.highScore) {
+            this.highScore = finalDist;
+            this.showNotification('NEW PERSONAL BEST!');
         }
 
         // Add Run Coins to Total
         this.totalGold += this.runCoins;
+        this.totalDistance += finalDist;
         this.saveData();
         if (this.totalGoldHudEl) this.totalGoldHudEl.innerText = this.totalGold.toString();
 
+        this.distanceOverEl.innerText = finalDist.toString();
         this.runGoldOverEl.innerText = this.runCoins.toString();
         this.walletOverEl.innerText = this.totalGold.toString();
         this.highScoreOverEl.innerText = this.highScore.toString();
 
+        // Revive Logic
+        if (this.reviveCount < 3) {
+            document.getElementById('revive-container')!.style.display = 'block';
+            this.reviveTimer = 10;
+            this.updateReviveUI();
+
+            if (this.reviveInterval) clearInterval(this.reviveInterval);
+            this.reviveInterval = setInterval(() => {
+                this.reviveTimer--;
+                this.updateReviveUI();
+                if (this.reviveTimer <= 0) {
+                    clearInterval(this.reviveInterval);
+                    this.reviveInterval = null;
+                    document.getElementById('revive-container')!.style.display = 'none';
+                }
+            }, 1000);
+        } else {
+            document.getElementById('revive-container')!.style.display = 'none';
+        }
+
         this.gameOverScreen.style.display = 'block';
         setTimeout(() => this.gameOverScreen.classList.add('active'), 10);
         this.hud.classList.add('hidden');
+    }
+
+    getReviveCost() {
+        if (this.reviveCount === 0) return 100;
+        if (this.reviveCount === 1) return 250;
+        return 500;
+    }
+
+    updateReviveUI() {
+        if (!this.reviveBtn || !this.reviveCountdownEl) return;
+        const cost = this.getReviveCost();
+        this.reviveCountdownEl.innerText = this.reviveTimer.toString();
+        this.reviveBtn.innerHTML = `<div>REVIVE NOW</div><div class='price' style='font-size: 1rem;'>${cost} G</div>`;
+        this.reviveBtn.disabled = this.totalGold < cost;
+
+        if (this.totalGold < cost) {
+            this.reviveBtn.style.background = '#555';
+            this.reviveBtn.style.opacity = '0.5';
+            this.reviveBtn.style.cursor = 'not-allowed';
+        } else {
+            this.reviveBtn.style.background = '#4CAF50';
+            this.reviveBtn.style.opacity = '1';
+            this.reviveBtn.style.cursor = 'pointer';
+        }
+    }
+
+    revive() {
+        const cost = this.getReviveCost();
+        if (this.totalGold >= cost && this.reviveCount < 3) {
+            this.totalGold -= cost;
+            this.reviveCount++;
+            this.saveData();
+
+            if (this.reviveInterval) {
+                clearInterval(this.reviveInterval);
+                this.reviveInterval = null;
+            }
+
+            // Resume Game
+            this.isPlaying = true;
+            this.gameIsOver = false;
+            this.clock.start();
+
+            // World cleanup: Clear obstacles for safety
+            this.world.clearNearbyObstacles(40);
+
+            // Grant 4s Iron Body
+            this.activatePotion(4);
+
+            // Hide Game Over
+            this.gameOverScreen.classList.remove('active');
+            setTimeout(() => {
+                this.gameOverScreen.style.display = 'none';
+                this.hud.classList.remove('hidden');
+            }, 300);
+
+            this.updateStartUI();
+            if (this.totalGoldHudEl) this.totalGoldHudEl.innerText = this.totalGold.toString();
+            this.showNotification('REVIVED! 4s INVINCIBILITY!');
+        }
     }
 
     update(dt) {
@@ -948,6 +1044,17 @@ export default class Game {
         if (this.speedTimer >= 10) {
             this.speed *= 1.05;
             this.speedTimer -= 10;
+        }
+
+        // Distance Logic
+        const prevDist = Math.floor(this.runDistance);
+        this.runDistance += this.speed * dt;
+        const currDist = Math.floor(this.runDistance);
+        this.distanceHudEl.innerText = currDist.toString().padStart(4, '0') + 'm';
+
+        // Milestone Effect: Every 500m
+        if (Math.floor(currDist / 500) > Math.floor(prevDist / 500)) {
+            this.showNotification('SPEED UP! ⚡');
         }
 
         // Magnet Timer Logic
@@ -1074,8 +1181,6 @@ export default class Game {
         const obs = this.world.checkCollisionDetailed(this.player.mesh, collisionRadiusExp);
         if (obs) {
             if (this.potionActive) { // Potion is active, absorb hit
-                this.showNotification('SUPERNOVA!');
-
                 // Shake Camera
                 this.shakeIntensity = 0.5;
                 this.shakeTime = 0.5;
@@ -1092,10 +1197,8 @@ export default class Game {
                     if (this.moltenObstacleCount >= 10) {
                         this.totalJades += 5;
                         this.saveData();
-                        this.showNotification('+5 JADE BONUS (MOLTEN)');
                         this.moltenObstacleCount = 0;
                         if (this.totalJadesHudEl) this.totalJadesHudEl.innerText = this.totalJades.toString();
-                        this.showFloatingText('BONUS JADES!', this.player.mesh.position, '#FFD700');
                     }
                 }
             } else {

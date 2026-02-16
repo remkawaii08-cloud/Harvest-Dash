@@ -22,7 +22,7 @@
       <div class="menu-buttons">
         <button id="start-btn">START GAME</button>
         <button id="shop-btn-start">SHOP</button>
-        <button id="skills-btn-start">SKILLS</button>
+
         <button id="guide-btn-start" class="guide-btn"
           style="background: #4A148C; border-color: #9C27B0;">GUIDE</button>
       </div>
@@ -31,7 +31,9 @@
         GOLD: <span class="coin-icon"></span><span id="start-total-gold">0</span>
         <span style="margin-left: 15px;">JADES: </span><span class="jade-icon"></span><span
           id="start-total-jades">0</span>
-        <span style="margin-left: 15px;">BEST: </span><span id="start-high-score">0</span>
+        <span style="margin-left: 15px;">BEST: </span><span id="start-high-score">0</span>m
+      </div>
+      <div style="margin-top: 10px; color: #ddd; font-size: 1.2rem;">LIFETIME: <span id="start-total-dist">0</span>m
       </div>
 
       <p style="font-size: 1rem; margin-top: 20px; opacity: 0.8;">
@@ -40,13 +42,18 @@
     </div>
     <div id="game-over-screen" class="screen">
       <h1>Harvest Dash</h1>
-      <p>Collected:
-        <span class="coin-icon"></span><span id="run-gold-over">0</span>
-      </p>
-      <p>Wallet:
-        <span class="coin-icon"></span><span id="wallet-over">0</span>
-      </p>
-      <p style="font-size: 1.2rem; color: #FFD700;">BEST: <span id="high-score-over">0</span></p>
+      <p>Distance: <span id="run-distance-over">0</span>m</p>
+      <p style="font-size: 1.2rem; color: #FFD700;">BEST: <span id="high-score-over">0</span>m</p>
+      <p>Coins: <span class="coin-icon"></span><span id="run-gold-over">0</span></p>
+      <p>Wallet: <span class="coin-icon"></span><span id="wallet-over">0</span></p>
+
+      <div id="revive-container" style="margin-bottom: 20px;">
+        <div id="revive-timer-text" style="font-size: 1.5rem; color: #ff0000; margin-bottom: 10px;">Revive in: <span
+            id="revive-countdown">10</span>s</div>
+        <button id="revive-btn" style="background: #4CAF50; border-color: #2E7D32; color: white;">REVIVE (100
+          G)</button>
+      </div>
+
       <button id="restart-btn">Try Again</button>
       <button id="shop-btn-over" class="shop-btn">Shop</button>
       <button id="menu-btn-over" style="margin-top: 10px;">Main Menu</button>
@@ -74,16 +81,14 @@
       <div id="store-content" class="tab-content active">
         <div class="shop-items">
           <button id="buy-magnet" class="item-btn">
-            <div>Magnet (30s)</div>
-            <div class="price">1 G</div>
+            <div>Magnet</div>
+            <div style="font-size: 0.8rem; opacity: 0.9;">Pulls all nearby Gold</div>
+            <div class="price">30 G</div>
           </button>
           <button id="buy-potion" class="item-btn">
             <div>Iron Potion</div>
-            <div class="price">1 G</div>
-          </button>
-          <button id="buy-jump" class="item-btn">
-            <div>Jump Skill</div>
-            <div class="price">10 G</div>
+            <div style="font-size: 0.8rem; opacity: 0.9;">Smash through obstacles!</div>
+            <div class="price">100 G</div>
           </button>
         </div>
       </div>
@@ -121,7 +126,9 @@
         </section>
         <section>
           <h2 style="color: #FFD700;">OBSTACLES</h2>
-          <p style="font-size: 1.1rem;">Avoid Hay Bales, Crate Boxes, and Stones. <strong>STONES</strong> are rare and
+          <p style="font-size: 1.1rem;">Avoid Hay Bales, Crate Boxes, and <strong>Double Boxes</strong>. Double Boxes
+            are
+            taller—you <strong>MUST JUMP</strong> to clear them! <strong>STONES</strong> are rare and
             have a high chance to drop <strong>JADES</strong> when smashed!</p>
         </section>
         <section>
@@ -142,6 +149,7 @@
       <button id="bag-close" style="margin-top: 20px;">Close</button>
     </div>
     <div id="hud" class="hidden">
+      <div id="distance-hud">0000m</div>
       <!-- Touch Overlay for Movement -->
       <div id="touch-move-left" class="touch-zone"></div>
       <div id="touch-move-right" class="touch-zone"></div>

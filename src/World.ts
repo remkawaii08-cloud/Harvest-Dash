@@ -32,7 +32,7 @@ export default class World {
         this.spawnDistance = 100;
         this.lastSpawnZ = 0;
 
-        this.obstaclePool = { crate: [], hay: [], rock: [] };
+        this.obstaclePool = { crate: [], hay: [], rock: [], double_crate: [] };
         this.coinPool = [];
         this.floorPool = [];
         this.particles = [];
@@ -287,13 +287,17 @@ export default class World {
 
     spawnObstacle(zPos: number) {
         const types = ['crate', 'hay', 'rock'];
-        const type = types[Math.floor(Math.random() * types.length)];
+        let type = types[Math.floor(Math.random() * types.length)];
+
+        if (type === 'crate' && Math.random() < 0.2) {
+            type = 'double_crate';
+        }
 
         let obstacle;
 
         // Initialize pool structure if not exists (handling migration from array to object if user didn't refresh)
         if (Array.isArray(this.obstaclePool)) {
-            this.obstaclePool = { crate: [], hay: [], rock: [] };
+            this.obstaclePool = { crate: [], hay: [], rock: [], double_crate: [] };
         }
 
         if (this.obstaclePool[type] && this.obstaclePool[type].length > 0) {
@@ -305,8 +309,8 @@ export default class World {
 
         // Random Lane (-1, 0, 1) -> x = -2, 0, 2
         const lane = Math.floor(Math.random() * 3) - 1;
-        // Adjust height based on type (Rock might be lower)
-        const yPos = type === 'rock' ? 0.4 : 0.5;
+        // Adjust height based on type (Rock might be lower, Double Crate is taller)
+        const yPos = (type === 'rock') ? 0.4 : (type === 'double_crate' ? 1.0 : 0.5);
         obstacle.position.set(lane * 2.0, yPos, zPos);
         obstacle.rotation.set(0, 0, 0); // Reset rotation
 
@@ -322,7 +326,7 @@ export default class World {
     createObstacleMesh(type: string) {
         let geometry, material;
 
-        if (type === 'crate') {
+        if (type === 'crate' || type === 'double_crate') {
             if (!this.crateTexture) {
                 const canvas = document.createElement('canvas');
                 canvas.width = 64; canvas.height = 64;
@@ -333,8 +337,18 @@ export default class World {
                 this.crateTexture = new THREE.CanvasTexture(canvas);
                 this.crateTexture.magFilter = THREE.NearestFilter;
             }
-            geometry = new THREE.BoxGeometry(1, 1, 1);
-            material = new THREE.MeshStandardMaterial({ map: this.crateTexture, roughness: 0.8 });
+
+            if (type === 'crate') {
+                geometry = new THREE.BoxGeometry(1, 1, 1);
+                material = new THREE.MeshStandardMaterial({ map: this.crateTexture, roughness: 0.8 });
+            } else {
+                geometry = new THREE.BoxGeometry(1, 2, 1);
+                // For double crate, we need a separate material instance to repeat the texture
+                const doubleTexture = this.crateTexture.clone();
+                doubleTexture.wrapT = THREE.RepeatWrapping;
+                doubleTexture.repeat.set(1, 2);
+                material = new THREE.MeshStandardMaterial({ map: doubleTexture, roughness: 0.8 });
+            }
         } else if (type === 'hay') {
             if (!this.hayTexture) {
                 const canvas = document.createElement('canvas');
@@ -593,8 +607,8 @@ export default class World {
         this.game.scene.add(decal);
         this.decals.push(decal);
 
-        // Limit to 15 active marks
-        if (this.decals.length > 15) {
+        // Limit to 20 active marks
+        if (this.decals.length > 20) {
             const oldest = this.decals.shift();
             if (oldest) this.game.scene.remove(oldest);
         }
@@ -603,6 +617,16 @@ export default class World {
         const smokePos = decal.position.clone();
         smokePos.y = 0.2;
         this.spawnGenericParticles(smokePos, 2, 0x333333, 0.15, 1, 0.5, false);
+    }
+
+    clearNearbyObstacles(zRange: number = 30) {
+        // Clear obstacles from z=0 down to z=-zRange
+        for (let i = this.obstacles.length - 1; i >= 0; i--) {
+            const obs = this.obstacles[i];
+            if (obs.position.z <= 0 && obs.position.z >= -zRange) {
+                this.breakObstacle(obs);
+            }
+        }
     }
 
     checkCollision(playerMesh: THREE.Mesh) {
@@ -659,7 +683,11 @@ export default class World {
         if (type === 'rock' || type === 'stone') color = 0x808080;
         else if (type === 'hay') color = 0xFFD700;
 
-        this.spawnGenericParticles(pos, count, color, size, speed, 1.2, false);
+        if (type === 'double_crate') {
+            this.spawnGenericParticles(pos, count * 2, color, size, speed, 1.2, false);
+        } else {
+            this.spawnGenericParticles(pos, count, color, size, speed, 1.2, false);
+        }
     }
 
     spawnGenericParticles(pos: THREE.Vector3, count: number, color: number | string, size: number = 0.2, speed: number = 5, life: number = 1.0, isGlow: boolean = false) {
