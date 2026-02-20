@@ -1,8 +1,13 @@
 import './style.css';
 import Game from './src/Game';
+import { sdk } from '@farcaster/miniapp-sdk';
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
     try {
+        // Initialize Farcaster SDK
+        await sdk.actions.ready();
+        console.log("Farcaster SDK Ready");
+
         const game = new Game();
         game.init();
     } catch (error) {

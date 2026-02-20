@@ -15,6 +15,7 @@
     "vite": "^7.3.1"
   },
   "dependencies": {
+    "@farcaster/miniapp-sdk": "^0.2.3",
     "three": "^0.182.0"
   }
 }

@@ -1,0 +1,37 @@
+{
+    "accountAssociation": {
+        "header": "",
+        "payload": "",
+        "signature": ""
+    },
+    "miniapp": {
+        "version": "1",
+        "name": "Harvest Dash",
+        "homeUrl": "https://harvest-dash.vercel.app",
+        "iconUrl": "https://harvest-dash.vercel.app/hay-bale.svg",
+        "splashImageUrl": "https://harvest-dash.vercel.app/hay-bale.svg",
+        "splashBackgroundColor": "#000000",
+        "webhookUrl": "https://harvest-dash.vercel.app/api/webhook",
+        "subtitle": "Fast, fun, social",
+        "description": "A fast, fun way to challenge friends in real time.",
+        "screenshotUrls": [
+            "https://harvest-dash.vercel.app/hay-bale.svg",
+            "https://harvest-dash.vercel.app/hay-bale.svg",
+            "https://harvest-dash.vercel.app/hay-bale.svg"
+        ],
+        "primaryCategory": "games",
+        "tags": [
+            "runner",
+            "arcade",
+            "action",
+            "endless",
+            "game"
+        ],
+        "heroImageUrl": "https://harvest-dash.vercel.app/hay-bale.svg",
+        "tagline": "Play instantly",
+        "ogTitle": "Harvest Dash",
+        "ogDescription": "Challenge friends in real time.",
+        "ogImageUrl": "https://harvest-dash.vercel.app/hay-bale.svg",
+        "noindex": true
+    }
+}
