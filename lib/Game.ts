@@ -32,7 +32,7 @@ export default class Game {
 
     highScore: number = 0;
 
-    // Skins Data
+    // Skins Dataa
     skinsData = [
         { name: 'Classic Farmer', price: 0, currency: 'gold', color: '#D2691E', desc: 'A humble start.' },
         { name: 'Iron Knight', price: 150, currency: 'gold', color: '#708090', desc: 'Iron Body Potion lasts 3s longer.' },
