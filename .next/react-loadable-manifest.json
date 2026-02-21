@@ -1,0 +1,37 @@
+{
+  "app\\page.tsx -> ./game-init": {
+    "id": 1299,
+    "files": [
+      "static/chunks/3a91511d-acdc7474292be06d.js",
+      "static/chunks/b536a0f1.631b48c4cc6dc184.js",
+      "static/chunks/bd904a5c.ceff97288041396d.js",
+      "static/chunks/37-e427313c1031749d.js",
+      "static/chunks/662.cec89e416f7f13a1.js",
+      "static/chunks/414.ab378a82cf363292.js"
+    ]
+  },
+  "node_modules\\next\\dist\\client\\index.js -> ../pages/_app": {
+    "id": 5139,
+    "files": [
+      "static/chunks/139.e8e07991ffedd534.js"
+    ]
+  },
+  "node_modules\\next\\dist\\client\\index.js -> ../pages/_error": {
+    "id": 1646,
+    "files": [
+      "static/chunks/646.a702bf538bb261ec.js"
+    ]
+  },
+  "node_modules\\viem\\_esm\\actions\\public\\call.js -> ../../utils/ccip.js": {
+    "id": null,
+    "files": []
+  },
+  "node_modules\\viem\\_esm\\utils\\rpc\\webSocket.js -> isows": {
+    "id": null,
+    "files": []
+  },
+  "node_modules\\viem\\_esm\\utils\\signature\\recoverPublicKey.js -> @noble/curves/secp256k1": {
+    "id": null,
+    "files": []
+  }
+}
